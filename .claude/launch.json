@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "space-war",
+      "runtimeExecutable": "ruby",
+      "runtimeArgs": ["-run", "-e", "httpd", "/Users/sarapoffenroth/Documents/claude/claude code/space-war", "-p", "8420"],
+      "port": 8420
+    }
+  ]
+}

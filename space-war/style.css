@@ -1,0 +1,96 @@
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; touch-action:none; }
+html, body { width:100%; height:100%; overflow:hidden; background:#000; font-family:-apple-system, 'Segoe UI', Arial, sans-serif; }
+#game-canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+
+.hidden { display:none !important; }
+
+/* ---------- Loading ---------- */
+#loading-screen { position:fixed; inset:0; background:#03040a; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#9fd; gap:16px; }
+.loader { width:56px; height:56px; border:6px solid #123; border-top-color:#5ef; border-radius:50%; animation:spin 0.9s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ---------- Title screen ---------- */
+.overlay { position:fixed; inset:0; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  background:radial-gradient(ellipse at 50% 30%, #131a3a 0%, #05060f 70%); color:#fff; text-align:center; padding:20px; }
+.title-logo { font-size:min(14vw,72px); letter-spacing:6px; font-weight:900; text-shadow:0 0 24px #4df, 0 0 60px #26f; }
+.title-logo span { color:#ff5b5b; text-shadow:0 0 24px #f55, 0 0 60px #a11; }
+.subtitle { color:#9fb4ff; margin-bottom:20px; font-size:16px; }
+.big-btn { pointer-events:auto; font-size:20px; font-weight:700; letter-spacing:2px; padding:14px 40px; border-radius:10px; border:2px solid #5ef;
+  background:linear-gradient(180deg,#1a2b52,#0c1330); color:#bff2ff; cursor:pointer; min-width:240px; }
+.big-btn:active { transform:scale(0.97); background:#1e3a6e; }
+.hint { margin-top:18px; color:#7788aa; font-size:13px; max-width:420px; }
+
+/* ---------- HUD ---------- */
+#hud { position:fixed; inset:0; z-index:20; pointer-events:none; }
+#hud-top-left { position:absolute; top:14px; left:14px; display:flex; flex-direction:column; gap:6px; }
+#health-bar-wrap { width:200px; height:22px; background:#1119; border:2px solid #333; border-radius:6px; position:relative; overflow:hidden; }
+#health-bar { height:100%; width:100%; background:linear-gradient(90deg,#ff3b3b,#ff8a3b); transition:width 0.25s; }
+#health-label { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:#fff; font-weight:700; text-shadow:0 1px 2px #000; }
+#location-label { color:#cfe; font-weight:700; letter-spacing:2px; font-size:13px; text-shadow:0 1px 3px #000; background:#0007; padding:3px 10px; border-radius:5px; width:fit-content; }
+
+#hud-top-right { position:absolute; top:14px; right:14px; display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+.hud-pill { background:#0009; border:1px solid #345; color:#fff; padding:6px 12px; border-radius:20px; font-weight:700; font-size:14px; }
+
+#mission-tracker { position:absolute; top:80px; right:14px; max-width:280px; background:#0008; border:1px solid #345; border-radius:8px; padding:10px 12px; color:#dff; font-size:12.5px; line-height:1.5; }
+#mission-tracker:empty { display:none; }
+#mission-tracker .m-title { color:#ffd35e; font-weight:700; }
+#mission-tracker .m-done { color:#7fff9e; text-decoration:line-through; opacity:0.6; }
+
+#interact-prompt { position:absolute; bottom:34%; left:50%; transform:translateX(-50%); background:#000c; border:1px solid #5ef; color:#eaffff; padding:8px 16px; border-radius:8px; font-size:14px; font-weight:600; }
+#pickup-toast { position:absolute; top:120px; left:50%; transform:translateX(-50%); background:#0a0; color:#fff; padding:6px 14px; border-radius:20px; font-weight:700; font-size:13px; animation:toastPop 1.4s ease forwards; }
+@keyframes toastPop { 0%{opacity:0; transform:translate(-50%,10px) scale(0.8);} 15%{opacity:1; transform:translate(-50%,0) scale(1);} 80%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-16px) scale(0.9);} }
+
+#dig-progress-wrap { position:absolute; bottom:38%; left:50%; transform:translateX(-50%); width:160px; height:10px; background:#0008; border:1px solid #888; border-radius:6px; overflow:hidden; }
+#dig-progress-bar { height:100%; width:0%; background:#ffcf4d; }
+
+#crosshair { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:#fff; font-size:22px; opacity:0.75; text-shadow:0 0 4px #000; }
+
+/* ---------- Touch controls ---------- */
+#touch-controls { position:fixed; inset:0; z-index:25; pointer-events:none; }
+#joystick-zone { position:absolute; left:0; bottom:0; width:45%; height:55%; pointer-events:auto; }
+#joystick-base { position:absolute; left:36px; bottom:36px; width:110px; height:110px; border-radius:50%; background:#fff2; border:2px solid #fff5; }
+#joystick-knob { position:absolute; left:50%; top:50%; width:52px; height:52px; margin:-26px; border-radius:50%; background:#fff6; border:2px solid #fff; }
+#action-buttons { position:absolute; right:24px; bottom:30px; display:flex; align-items:flex-end; gap:14px; pointer-events:auto; }
+.ctrl-btn { width:66px; height:66px; border-radius:50%; background:#fff2; border:2px solid #fff6; color:#fff; font-weight:800; font-size:11px; letter-spacing:1px; }
+.ctrl-btn:active { background:#fff5; }
+.ctrl-btn.fire { width:78px; height:78px; background:#ff3b3b55; border-color:#ff8a8a; }
+.ctrl-btn.fire:active { background:#ff3b3baa; }
+
+/* ---------- Panels / shop ---------- */
+#panel-backdrop { position:fixed; inset:0; z-index:60; background:#000a; display:flex; align-items:center; justify-content:center; pointer-events:auto; }
+#panel { width:min(94vw,520px); max-height:80vh; overflow-y:auto; background:#0d1226; border:2px solid #3a5; border-radius:14px; color:#eaffff; }
+#panel-header { display:flex; justify-content:space-between; align-items:center; padding:14px 18px; border-bottom:1px solid #2a3a5a; position:sticky; top:0; background:#0d1226; }
+#panel-title { font-size:18px; font-weight:800; letter-spacing:1px; color:#ffd35e; }
+#panel-close { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; padding:4px 8px; }
+#panel-body { padding:14px 18px 20px; display:flex; flex-direction:column; gap:10px; }
+
+.shop-item { display:flex; justify-content:space-between; align-items:center; background:#131b36; border:1px solid #26365e; border-radius:10px; padding:10px 12px; }
+.shop-item .si-name { font-weight:700; font-size:14.5px; }
+.shop-item .si-desc { font-size:12px; color:#9ab; margin-top:2px; }
+.shop-item button { background:#1e5c2f; border:1px solid #4c9; color:#dfffe6; font-weight:700; padding:8px 14px; border-radius:8px; cursor:pointer; }
+.shop-item button:disabled { background:#333; border-color:#555; color:#777; }
+
+.mission-entry { background:#131b36; border:1px solid #26365e; border-radius:10px; padding:10px 12px; }
+.mission-entry.done { opacity:0.55; }
+.mission-entry .me-name { font-weight:800; color:#ffd35e; font-size:14.5px; }
+.mission-entry .me-desc { font-size:12.5px; color:#bcd; margin-top:3px; }
+.mission-entry .me-reward { font-size:12px; color:#7fff9e; margin-top:4px; }
+
+.starmap-row { display:flex; justify-content:space-between; align-items:center; background:#131b36; border:1px solid #26365e; border-radius:10px; padding:10px 12px; }
+.starmap-row button { background:#123a6e; border:1px solid #4a9dff; color:#dff; font-weight:700; padding:8px 14px; border-radius:8px; }
+.starmap-row button:disabled { background:#222; border-color:#444; color:#666; }
+
+/* ---------- corner buttons ---------- */
+.corner-btn { position:fixed; z-index:22; pointer-events:auto; top:14px; left:50%; transform:translateX(-50%); background:#0009; color:#fff; border:1px solid #567; border-radius:20px; padding:8px 16px; font-weight:700; font-size:13px; }
+
+#starmap-hint { position:fixed; bottom:14%; left:50%; transform:translateX(-50%); z-index:21; color:#eaffff; background:#000a; border:1px solid #5ef; padding:6px 14px; border-radius:8px; font-size:13px; }
+
+/* ---------- Big message ---------- */
+#big-message { position:fixed; inset:0; z-index:70; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px;
+  background:#000c; color:#fff; text-align:center; pointer-events:none; }
+#big-message h2 { font-size:min(9vw,44px); color:#ffd35e; text-shadow:0 0 20px #a80; letter-spacing:2px; }
+#big-message p { color:#cde; font-size:15px; max-width:480px; }
+
+@media (min-width:900px) {
+  #joystick-zone, #action-buttons { display:none; }
+}

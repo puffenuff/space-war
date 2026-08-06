@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>SPACE WAR</title>
+<link rel="stylesheet" href="style.css" />
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<canvas id="game-canvas"></canvas>
+
+<!-- ===================== START / TITLE SCREEN ===================== -->
+<div id="title-screen" class="overlay">
+  <h1 class="title-logo">SPACE <span>WAR</span></h1>
+  <p class="subtitle">starring Billy Bob, Astronaut</p>
+  <button id="btn-new-game" class="big-btn">NEW GAME</button>
+  <button id="btn-continue" class="big-btn">CONTINUE</button>
+  <p class="hint">WASD / drag joystick to move &middot; drag screen to look &middot; F to shoot &middot; E to interact</p>
+</div>
+
+<!-- ===================== HUD ===================== -->
+<div id="hud" class="hidden">
+  <div id="hud-top-left">
+    <div id="health-bar-wrap"><div id="health-bar"></div><span id="health-label">100</span></div>
+    <div id="location-label">BASE</div>
+  </div>
+  <div id="hud-top-right">
+    <div class="hud-pill">🪙 <span id="coin-count">0</span></div>
+    <div class="hud-pill" id="parts-pill">🔧 <span id="parts-count">0</span>/4</div>
+  </div>
+  <div id="mission-tracker"></div>
+  <div id="interact-prompt" class="hidden"></div>
+  <div id="pickup-toast" class="hidden"></div>
+  <div id="dig-progress-wrap" class="hidden"><div id="dig-progress-bar"></div></div>
+  <div id="crosshair" class="hidden">+</div>
+</div>
+
+<!-- ===================== TOUCH CONTROLS ===================== -->
+<div id="touch-controls" class="hidden">
+  <div id="joystick-zone">
+    <div id="joystick-base"><div id="joystick-knob"></div></div>
+  </div>
+  <div id="action-buttons">
+    <button id="btn-jump" class="ctrl-btn">JUMP</button>
+    <button id="btn-interact" class="ctrl-btn">USE</button>
+    <button id="btn-fire" class="ctrl-btn fire">FIRE</button>
+  </div>
+</div>
+
+<!-- ===================== SHOP / DIALOG PANEL ===================== -->
+<div id="panel-backdrop" class="hidden">
+  <div id="panel">
+    <div id="panel-header">
+      <span id="panel-title"></span>
+      <button id="panel-close">✕</button>
+    </div>
+    <div id="panel-body"></div>
+  </div>
+</div>
+
+<!-- ===================== MISSION LOG ===================== -->
+<button id="btn-missions" class="hidden corner-btn">📋 MISSIONS</button>
+
+<!-- ===================== STAR MAP ===================== -->
+<div id="starmap-hint" class="hidden"></div>
+
+<!-- ===================== BIG MESSAGE (planet complete, etc) ===================== -->
+<div id="big-message" class="hidden"></div>
+
+<!-- ===================== LOADING ===================== -->
+<div id="loading-screen">
+  <div class="loader"></div>
+  <p>Loading SPACE WAR...</p>
+</div>
+
+<script type="module" src="js/game.js"></script>
+</body>
+</html>
