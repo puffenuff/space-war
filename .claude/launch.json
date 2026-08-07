@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "space-war",
-      "runtimeExecutable": "ruby",
-      "runtimeArgs": ["-run", "-e", "httpd", "/Users/sarapoffenroth/Documents/claude/claude code/space-war", "-p", "8420"],
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "8420", "--directory", "space-war"],
       "port": 8420
     }
   ]

@@ -1,7 +1,6 @@
-import * as THREE from 'three';
 
 // ===================== GROUND RAIDER =====================
-export function createGroundEnemy(spawn) {
+function createGroundEnemy(spawn) {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x8a3b3b, roughness: 0.6 });
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.85, 0.4), bodyMat);
@@ -30,7 +29,7 @@ export function createGroundEnemy(spawn) {
   return g;
 }
 
-export function updateGroundEnemy(enemy, dt, playerPos, groundHeightFn, onShoot) {
+function updateGroundEnemy(enemy, dt, playerPos, groundHeightFn, onShoot) {
   const u = enemy.userData;
   if (!u.alive) return;
   const toPlayer = new THREE.Vector3().subVectors(playerPos, enemy.position);
@@ -75,7 +74,7 @@ export function updateGroundEnemy(enemy, dt, playerPos, groundHeightFn, onShoot)
 }
 
 // ===================== SPACE ENEMY SHIP =====================
-export function createSpaceEnemy(pos) {
+function createSpaceEnemy(pos) {
   const g = new THREE.Group();
   const hull = new THREE.Mesh(new THREE.ConeGeometry(0.6, 2, 6), new THREE.MeshStandardMaterial({ color: 0xaa3333, metalness: 0.5, roughness: 0.4 }));
   hull.rotation.x = Math.PI / 2;
@@ -92,7 +91,7 @@ export function createSpaceEnemy(pos) {
   return g;
 }
 
-export function updateSpaceEnemy(enemy, dt, playerPos, onShoot) {
+function updateSpaceEnemy(enemy, dt, playerPos, onShoot) {
   const u = enemy.userData;
   if (!u.alive) return;
   u.strafeT += dt;
@@ -118,7 +117,7 @@ export function updateSpaceEnemy(enemy, dt, playerPos, onShoot) {
 }
 
 // ===================== PROJECTILES =====================
-export function createProjectile(origin, dir, opts = {}) {
+function createProjectile(origin, dir, opts = {}) {
   const color = opts.color || 0x5ecbff;
   const geo = new THREE.SphereGeometry(opts.size || 0.09, 6, 6);
   const mat = new THREE.MeshBasicMaterial({ color });
@@ -133,7 +132,7 @@ export function createProjectile(origin, dir, opts = {}) {
   return m;
 }
 
-export function updateProjectiles(list, dt, scene) {
+function updateProjectiles(list, dt, scene) {
   for (let i = list.length - 1; i >= 0; i--) {
     const p = list[i];
     p.position.addScaledVector(p.userData.velocity, dt);
@@ -146,7 +145,7 @@ export function updateProjectiles(list, dt, scene) {
 }
 
 // ===================== EXPLOSIONS =====================
-export function createExplosion(scene, pos, color = 0xffaa33, count = 16) {
+function createExplosion(scene, pos, color = 0xffaa33, count = 16) {
   const group = new THREE.Group();
   group.position.copy(pos);
   const geo = new THREE.SphereGeometry(0.08, 5, 5);
@@ -164,7 +163,7 @@ export function createExplosion(scene, pos, color = 0xffaa33, count = 16) {
   return group;
 }
 
-export function updateExplosions(list, dt, scene) {
+function updateExplosions(list, dt, scene) {
   for (let i = list.length - 1; i >= 0; i--) {
     const ex = list[i];
     ex.userData.life -= dt;

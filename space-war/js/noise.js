@@ -6,7 +6,7 @@ function hash2(x, y, seed) {
 function lerp(a, b, t) { return a + (b - a) * t; }
 function smooth(t) { return t * t * (3 - 2 * t); }
 
-export function valueNoise(x, y, seed = 0) {
+function valueNoise(x, y, seed = 0) {
   const xi = Math.floor(x), yi = Math.floor(y);
   const xf = x - xi, yf = y - yi;
   const a = hash2(xi, yi, seed);
@@ -18,7 +18,7 @@ export function valueNoise(x, y, seed = 0) {
 }
 
 // fractal sum for rolling hills
-export function fbm(x, y, seed = 0, octaves = 4) {
+function fbm(x, y, seed = 0, octaves = 4) {
   let total = 0, amp = 1, freq = 1, maxAmp = 0;
   for (let i = 0; i < octaves; i++) {
     total += valueNoise(x * freq, y * freq, seed + i * 17.3) * amp;
@@ -30,7 +30,7 @@ export function fbm(x, y, seed = 0, octaves = 4) {
 }
 
 // terrain height function shared by generation + collision
-export function terrainHeight(x, z, seed, hillScale = 9) {
+function terrainHeight(x, z, seed, hillScale = 9) {
   const n = fbm(x * 0.02, z * 0.02, seed, 4);
   let h = (n - 0.5) * 2 * hillScale;
   // gentle bowl near center (base landing zone) flattened

@@ -1,5 +1,5 @@
 // ===================== UNIFIED INPUT (keyboard/mouse + touch) =====================
-export const input = {
+const input = {
   moveX: 0, moveY: 0, // -1..1
   lookDX: 0, lookDY: 0, // per-frame look delta
   jumpPressed: false,
@@ -14,9 +14,9 @@ let isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 let kbFire = false, mouseFire = false, touchFire = false;
 let kbInteract = false, touchInteract = false;
 
-export function isTouchDevice() { return isTouch; }
+function isTouchDevice() { return isTouch; }
 
-export function initControls(canvas) {
+function initControls(canvas) {
   window.addEventListener('keydown', (e) => {
     keys[e.code] = true;
     if (e.code === 'Space') { input.jumpPressed = true; e.preventDefault(); }
@@ -123,7 +123,7 @@ export function initControls(canvas) {
 }
 
 // call each frame after using input.*Pressed flags, to reset one-shot flags & keyboard movement
-export function updateControlsFrame() {
+function updateControlsFrame() {
   let mx = 0, my = 0;
   if (keys['KeyA'] || keys['ArrowLeft']) mx -= 1;
   if (keys['KeyD'] || keys['ArrowRight']) mx += 1;
@@ -136,7 +136,7 @@ export function updateControlsFrame() {
   input.interactHeld = kbInteract || touchInteract;
 }
 
-export function consumeOneShots() {
+function consumeOneShots() {
   input.jumpPressed = false;
   input.firePressed = false;
   input.interactPressed = false;

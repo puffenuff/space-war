@@ -1,19 +1,17 @@
-import { state } from './state.js';
-import { MISSIONS } from './data.js';
 
-export function ensurePlanetMissions(planetId) {
+function ensurePlanetMissions(planetId) {
   const pState = state.planets[planetId];
   MISSIONS[planetId].forEach((m) => {
     if (!pState.missions[m.id]) pState.missions[m.id] = { done: false, progress: 0 };
   });
 }
 
-export function activeMissions(planetId) {
+function activeMissions(planetId) {
   ensurePlanetMissions(planetId);
   return MISSIONS[planetId].map((def) => ({ def, prog: state.planets[planetId].missions[def.id] }));
 }
 
-export function rewardText(reward) {
+function rewardText(reward) {
   const parts = [];
   if (reward.coins) parts.push(`+${reward.coins} coins`);
   if (reward.tools) parts.push(`+${reward.tools} tools`);
@@ -21,7 +19,7 @@ export function rewardText(reward) {
   return parts.join('  ');
 }
 
-export function labelForPart(part) {
+function labelForPart(part) {
   return { engine: 'Engine', fuelTank: 'Fuel Tank', noseCone: 'Nose Cone', fins: 'Fins' }[part] || part;
 }
 
@@ -31,7 +29,7 @@ function applyReward(reward) {
   if (reward.rocketPart) state.rocketParts[reward.rocketPart] = true;
 }
 
-export function completeMission(planetId, missionId, toast) {
+function completeMission(planetId, missionId, toast) {
   ensurePlanetMissions(planetId);
   const prog = state.planets[planetId].missions[missionId];
   if (prog.done) return null;
@@ -43,7 +41,7 @@ export function completeMission(planetId, missionId, toast) {
   return def;
 }
 
-export function progressKill(planetId, toast) {
+function progressKill(planetId, toast) {
   ensurePlanetMissions(planetId);
   state.planets[planetId].kills += 1;
   MISSIONS[planetId].filter((m) => m.type === 'kill').forEach((def) => {
@@ -54,7 +52,7 @@ export function progressKill(planetId, toast) {
   });
 }
 
-export function progressCollect(planetId, toast) {
+function progressCollect(planetId, toast) {
   ensurePlanetMissions(planetId);
   MISSIONS[planetId].filter((m) => m.type === 'collect').forEach((def) => {
     const prog = state.planets[planetId].missions[def.id];
@@ -64,21 +62,21 @@ export function progressCollect(planetId, toast) {
   });
 }
 
-export function completeMissionByType(planetId, type, toast) {
+function completeMissionByType(planetId, type, toast) {
   ensurePlanetMissions(planetId);
   const def = MISSIONS[planetId].find((m) => m.type === type);
   if (!def) return null;
   return completeMission(planetId, def.id, toast);
 }
 
-export function missionProgressLabel(planetId, def) {
+function missionProgressLabel(planetId, def) {
   const prog = state.planets[planetId].missions[def.id];
   if (prog.done) return 'Done';
   if (def.type === 'kill' || def.type === 'collect') return `${prog.progress || 0}/${def.target}`;
   return 'In progress';
 }
 
-export function allMissionsDone(planetId) {
+function allMissionsDone(planetId) {
   ensurePlanetMissions(planetId);
   return MISSIONS[planetId].every((m) => state.planets[planetId].missions[m.id].done);
 }

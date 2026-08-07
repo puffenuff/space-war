@@ -1,20 +1,7 @@
-import * as THREE from 'three';
-import { initControls, updateControlsFrame, consumeOneShots, input, isTouchDevice } from './controls.js';
-import { Player, camState, updateThirdPersonCamera } from './player.js';
-import { buildPlanetScene } from './world.js';
-import { buildBaseScene } from './base.js';
-import { createGroundEnemy, updateGroundEnemy, createProjectile, updateProjectiles, createExplosion, updateExplosions } from './enemies.js';
-import { createRover, setRepaired, VehicleController } from './vehicles.js';
-import { SpaceFlight } from './spaceflight.js';
-import {
-  state, saveGame, loadGame, hasSave, resetState, rocketPartsCount, rocketReady, consumeRocketParts, UPGRADE_INFO, upgradeCost,
-} from './state.js';
-import { PLANETS, SHOP_ITEMS } from './data.js';
-import {
-  ensurePlanetMissions, activeMissions, completeMission, progressKill, progressCollect,
-  completeMissionByType, missionProgressLabel, allMissionsDone, rewardText, labelForPart,
-} from './missions.js';
-import * as ui from './ui.js';
+// NOTE: this is a classic (non-module) script. THREE and everything from
+// noise.js/data.js/state.js/controls.js/player.js/enemies.js/vehicles.js/
+// world.js/base.js/missions.js/spaceflight.js/ui.js is already in global
+// scope because index.html loads those scripts, in that order, before this one.
 
 // ===================== RENDERER / CAMERA =====================
 const canvas = document.getElementById('game-canvas');
@@ -85,7 +72,9 @@ player.onFire = (origin, dir) => {
   const p = createProjectile(origin, dir, { color: 0x8dffb0, speed: 46, damage: gunDamage(), owner: 'player', life: 2.2 });
   activeScene.add(p);
   activeBuild.projectiles.push(p);
+  sfx.shoot();
 };
+player.onJump = () => sfx.jump();
 
 // ===================== SCENE TRANSITIONS =====================
 function detachPlayer() {
@@ -102,6 +91,8 @@ function enterBase(spawn = true) {
   if (spawn) { player.mesh.position.set(baseBuild.spawnPoint.x, 0, baseBuild.spawnPoint.z); player.heading = Math.PI; }
   ui.setLocationLabel('SPACE WAR BASE');
   exitVehicleIfAny(false);
+  playMusicScene('base');
+  stopEngineRumble();
   saveGame();
 }
 
@@ -151,6 +142,8 @@ function enterPlanet(id, opts = {}) {
   player.heading = 0;
   ui.setLocationLabel(build.planet.name.toUpperCase());
   exitVehicleIfAny(false);
+  playMusicScene('planet');
+  stopEngineRumble();
   saveGame();
 }
 
@@ -180,6 +173,7 @@ function exitVehicleIfAny(keepScene = true) {
     player.mesh.visible = true;
     drivingVehicle = null;
     vehicleCtl = null;
+    sfx.exitVehicle();
   }
 }
 
@@ -192,16 +186,21 @@ function launchToSpace(destId, opts = {}) {
   ui.setLocationLabel('DEEP SPACE');
   ui.showStarmapHint(null);
   ui.showBigMessage('LAUNCHING', `Course set for ${PLANETS[destId].name}...`, 1800);
+  playMusicScene('space');
+  sfx.launch();
+  startEngineRumble();
 }
 
 function onArriveSpace(destId, progressionLaunch) {
   state.health = Math.max(40, spaceFlight.health);
+  sfx.arrive();
   if (progressionLaunch) {
     const prevFrontier = destId - 1;
     state.planets[prevFrontier].completed = true;
     state.planets[destId].unlocked = true;
     consumeRocketParts();
     ui.showBigMessage(`PLANET ${prevFrontier} COMPLETE!`, `${PLANETS[destId].name} is now unlocked.`, 3400);
+    sfx.missionComplete();
   } else {
     ui.showBigMessage('ARRIVED', PLANETS[destId].name, 1800);
   }
@@ -223,7 +222,8 @@ function collectiblesTick(dt) {
         m.userData.collected = true;
         m.visible = false;
         state.inventory.scrap += 1;
-        progressCollect(currentPlanetId, ui.showToast);
+        sfx.scrap();
+        progressCollect(currentPlanetId, missionToast);
         ui.showToast('+1 Scrap');
       }
     });
@@ -233,6 +233,7 @@ function collectiblesTick(dt) {
         m.userData.collected = true;
         m.visible = false;
         state.coins += m.userData.value;
+        sfx.coin();
         ui.showToast(`+${m.userData.value} Coins`);
       }
     });
@@ -240,7 +241,8 @@ function collectiblesTick(dt) {
       b.partPickup.userData.collected = true;
       b.partPickup.visible = false;
       state.rocketParts[b.partPickup.userData.part] = true;
-      completeMissionByType(currentPlanetId, 'partpickup', ui.showToast);
+      sfx.partFound();
+      completeMissionByType(currentPlanetId, 'partpickup', missionToast);
       ui.showToast(`${labelForPart(b.partPickup.userData.part)} acquired!`);
     }
   } else {
@@ -248,6 +250,7 @@ function collectiblesTick(dt) {
       b.chest.userData.collected = true;
       state.coins += 45;
       state.inventory.tools += 1;
+      sfx.partFound();
       ui.showToast('Cave Treasure! +45 Coins, +1 Tool');
     }
   }
@@ -269,7 +272,7 @@ function findNearestInteractable() {
       if (b.lostRocket) list.push(b.lostRocket);
     } else {
       const exitWorld = new THREE.Object3D();
-      exitWorld.position.set(b.caveOrigin.x + b.caveExit.position.x, 0, b.caveOrigin.z + b.caveExit.position.z);
+      exitWorld.position.set(b.caveOrigin.x + b.caveExit.position.x, b.caveOrigin.y, b.caveOrigin.z + b.caveExit.position.z);
       exitWorld.userData = { type: 'caveExit' };
       list.push(exitWorld);
     }
@@ -327,6 +330,8 @@ function handleInteractTap(obj) {
   }
 }
 
+function missionToast(text) { ui.showToast(text); sfx.missionComplete(); }
+
 function enterVehicle(mesh) {
   drivingVehicle = mesh;
   mesh.userData.driving = true;
@@ -335,6 +340,7 @@ function enterVehicle(mesh) {
   mesh.rotation.y = player.heading;
   player.disabled = true;
   player.mesh.visible = false;
+  sfx.enterVehicle();
 }
 
 function openShop(shopKey) {
@@ -353,6 +359,7 @@ function openShop(shopKey) {
       btn.onclick = () => {
         state.coins -= cost; state.upgrades[key] += 1;
         applyUpgradeEffects(); saveGame(); ui.updateCoins(state.coins);
+        sfx.buy();
         openShop(shopKey);
       };
       row.appendChild(btn);
@@ -373,6 +380,7 @@ function openShop(shopKey) {
         else if (item.type === 'inventory') state.inventory[item.key] = (state.inventory[item.key] || 0) + 1;
         else if (item.type === 'heal') state.health = Math.min(state.maxHealth, state.health + item.amount);
         saveGame(); ui.updateCoins(state.coins); ui.updateParts(rocketPartsCount()); ui.updateHealth(state.health, state.maxHealth);
+        sfx.buy();
         openShop(shopKey);
       };
       row.appendChild(btn);
@@ -395,6 +403,7 @@ function openStarmap() {
     btn.textContent = 'Travel';
     btn.disabled = !p.unlocked;
     btn.onclick = () => {
+      sfx.uiClick();
       ui.closePanel();
       launchToSpace(id, { forced: false, travelGoal: 340 });
     };
@@ -409,10 +418,12 @@ function tryLaunch() {
   if (frontier >= 3) {
     if (state.planets[3].lostRocketFound) ui.showToast('SPACE WAR complete! Explore freely.');
     else ui.showToast('Find the Lost Rocket Ship on Xenar Prime!');
+    sfx.denied();
     return;
   }
   if (!rocketReady()) {
     ui.showToast(`Need ${4 - rocketPartsCount()} more rocket part(s)! (${rocketPartsCount()}/4)`);
+    sfx.denied();
     return;
   }
   launchToSpace(frontier + 1, { forced: true, travelGoal: 620 });
@@ -425,10 +436,14 @@ function exploreLostRocket() {
   completeMissionByType(3, 'lostrocket', ui.showToast);
   if (activeBuild.lostRocket) { activeBuild.scene.remove(activeBuild.lostRocket); activeBuild.lostRocket = null; }
   saveGame();
+  sfx.win();
   ui.showBigMessage('🚀 LOST ROCKET FOUND!', 'Billy Bob has completed SPACE WAR! Keep exploring all three worlds anytime.', 5000);
 }
 
 // ===================== DIG / REPAIR HOLD LOGIC =====================
+let lastDigTickStep = -1;
+let lastRepairTickStep = -1;
+
 function handleHold(obj, dt) {
   const d = obj.userData;
   if (d.type === 'digSite') {
@@ -437,22 +452,28 @@ function handleHold(obj, dt) {
       digProgress = Math.min(1, digProgress + dt / 1.8);
       player.digging = true;
       ui.showDigProgress(digProgress);
+      const step = Math.floor(digProgress * 6);
+      if (step !== lastDigTickStep) { lastDigTickStep = step; sfx.dig(); }
       if (digProgress >= 1) completeDig(obj);
     } else {
       digProgress = Math.max(0, digProgress - dt * 2);
+      lastDigTickStep = -1;
       if (digProgress <= 0) { player.digging = false; ui.hideDigProgress(); }
     }
     return true;
   }
   if (d.type === 'vehicle' && !d.repaired) {
     if (input.interactHeld) {
-      if (state.inventory.tools < 2) { ui.showToast('Need 2 Repair Tools!'); repairHoldProgress = 0; return true; }
+      if (state.inventory.tools < 2) { ui.showToast('Need 2 Repair Tools!'); sfx.denied(); repairHoldProgress = 0; return true; }
       repairHoldProgress = Math.min(1, repairHoldProgress + dt / 1.6);
       player.digging = true;
       ui.showDigProgress(repairHoldProgress);
+      const step = Math.floor(repairHoldProgress * 6);
+      if (step !== lastRepairTickStep) { lastRepairTickStep = step; sfx.repairTick(); }
       if (repairHoldProgress >= 1) completeRepair(obj);
     } else {
       repairHoldProgress = Math.max(0, repairHoldProgress - dt * 2);
+      lastRepairTickStep = -1;
       if (repairHoldProgress <= 0) { player.digging = false; ui.hideDigProgress(); }
     }
     return true;
@@ -469,15 +490,17 @@ function completeDig(site) {
   digProgress = 0; player.digging = false; ui.hideDigProgress();
   const kind = site.userData.kind;
   if (kind === 'mission') {
-    const def = completeMissionByType(currentPlanetId, 'dig', ui.showToast);
-    if (!def) { state.coins += 20; ui.showToast('+20 Coins'); }
+    const def = completeMissionByType(currentPlanetId, 'dig', missionToast);
+    if (!def) { state.coins += 20; ui.showToast('+20 Coins'); sfx.coin(); }
   } else if (kind === 'cave') {
     ui.showToast('You dug into a cave!');
+    sfx.dig();
     enterCave(site);
   } else {
     const c = 10 + Math.floor(Math.random() * 15);
     state.coins += c; state.inventory.scrap += 1;
     ui.showToast(`+${c} Coins, +1 Scrap`);
+    sfx.coin();
   }
   saveGame();
 }
@@ -487,6 +510,7 @@ function completeRepair(vehicleMesh) {
   setRepaired(vehicleMesh);
   state.planets[currentPlanetId].vehicleRepaired = true;
   repairHoldProgress = 0; player.digging = false; ui.hideDigProgress();
+  sfx.repairDone();
   completeMissionByType(currentPlanetId, 'repair', ui.showToast);
   ui.showToast('Rover repaired!');
   saveGame();
@@ -510,6 +534,7 @@ function updateGroundCombat(dt) {
       const p = createProjectile(origin, dir, { color: 0xff5050, speed: 20, damage: 8, owner: 'enemy', life: 2.5 });
       b.scene.add(p);
       b.enemyProjectiles.push(p);
+      sfx.enemyShoot();
     });
   });
 
@@ -532,8 +557,11 @@ function updateGroundCombat(dt) {
           b.scene.remove(e);
           const coinGain = 8 + Math.floor(Math.random() * 10);
           state.coins += coinGain;
-          progressKill(currentPlanetId, ui.showToast);
+          sfx.explosion();
+          progressKill(currentPlanetId, missionToast);
           ui.showToast(`Raider down! +${coinGain} Coins`);
+        } else {
+          sfx.hit();
         }
         break;
       }
@@ -547,6 +575,7 @@ function updateGroundCombat(dt) {
       state.health -= p.userData.damage;
       b.scene.remove(p); b.enemyProjectiles.splice(i, 1);
       ui.updateHealth(state.health, state.maxHealth);
+      sfx.playerHurt();
       if (state.health <= 0) respawnPlayer();
     }
   }
@@ -555,6 +584,7 @@ function updateGroundCombat(dt) {
 function respawnPlayer() {
   state.coins = Math.max(0, Math.floor(state.coins * 0.9));
   state.health = Math.floor(state.maxHealth * 0.5);
+  sfx.knockedOut();
   enterBase();
   ui.showToast('Knocked out! Rescued back to Base.');
 }
@@ -592,7 +622,10 @@ function tick() {
   if (drivingVehicle) {
     vehicleCtl.update(dt);
     updateThirdPersonCamera(camera, drivingVehicle.position, dt, 10, 2.2);
-    if (input.interactPressed) exitVehicleIfAny();
+    if (input.interactPressed) {
+      exitVehicleIfAny();
+      input.interactPressed = false; // consume now, or the interactable check below sees you standing next to the car and re-enters it in the same frame
+    }
   } else {
     player.update(dt, speedMultiplier());
     updateThirdPersonCamera(camera, player.mesh.position, dt);
@@ -658,10 +691,17 @@ function openMissionLog() {
 }
 
 // ===================== TITLE / BOOTSTRAP =====================
-document.getElementById('btn-missions').addEventListener('click', openMissionLog);
-ui.initPanelClose(() => {});
+document.getElementById('btn-missions').addEventListener('click', () => { sfx.uiClick(); openMissionLog(); });
+ui.initPanelClose(() => { sfx.uiClick(); });
+
+document.getElementById('btn-mute').addEventListener('click', (e) => {
+  unlockAudio();
+  const nowMuted = toggleMute();
+  e.currentTarget.textContent = nowMuted ? '🔇' : '🔊';
+});
 
 document.getElementById('btn-new-game').addEventListener('click', () => {
+  unlockAudio();
   resetState();
   applyUpgradeEffects();
   ui.showTitleScreen(false);
@@ -669,6 +709,7 @@ document.getElementById('btn-new-game').addEventListener('click', () => {
   enterBase();
 });
 document.getElementById('btn-continue').addEventListener('click', () => {
+  unlockAudio();
   loadGame();
   applyUpgradeEffects();
   ui.showTitleScreen(false);
@@ -677,6 +718,7 @@ document.getElementById('btn-continue').addEventListener('click', () => {
 });
 
 function boot() {
+  document.getElementById('btn-mute').textContent = isMuted() ? '🔇' : '🔊';
   ui.showLoading(false);
   ui.setContinueEnabled(hasSave());
   ui.showTitleScreen(true);

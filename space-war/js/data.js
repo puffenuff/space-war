@@ -1,6 +1,6 @@
 // ===================== STATIC GAME DATA =====================
 
-export const PLANETS = {
+const PLANETS = {
   1: {
     name: 'Rustholm', theme: 'desert',
     ground: 0xc06a3a, ground2: 0x8a4423, sky: 0xffb37a, fog: 0xd88a52,
@@ -26,7 +26,7 @@ export const PLANETS = {
 };
 
 // Missions per planet. type: 'kill' | 'collect' | 'repair' | 'dig' | 'boss'
-export const MISSIONS = {
+const MISSIONS = {
   1: [
     { id: 'p1m1', name: 'Clear the Raiders', desc: 'Defeat 3 raiders roaming Rustholm.', type: 'kill', target: 3, reward: { coins: 35 } },
     { id: 'p1m2', name: 'Scrap Run', desc: 'Collect 5 scrap metal from the surface.', type: 'collect', item: 'scrap', target: 5, reward: { coins: 25, tools: 1 } },
@@ -51,7 +51,7 @@ export const MISSIONS = {
   ],
 };
 
-export const SHOP_ITEMS = {
+const SHOP_ITEMS = {
   parts: [
     { key: 'engine', name: 'Rocket Engine', desc: 'Buy the engine outright.', cost: 90, type: 'rocketPart' },
     { key: 'fuelTank', name: 'Fuel Tank', desc: 'Buy the fuel tank outright.', cost: 80, type: 'rocketPart' },

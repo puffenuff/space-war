@@ -1,16 +1,14 @@
-import * as THREE from 'three';
-import { input } from './controls.js';
 
 // ===================== CAMERA ORBIT STATE (shared across scenes) =====================
-export const camState = { yaw: 0, pitch: 0.42, distance: 9 };
+const camState = { yaw: 0, pitch: 0.42, distance: 9 };
 
-export function applyLookInput(sensitivity = 0.006) {
+function applyLookInput(sensitivity = 0.006) {
   camState.yaw -= input.lookDX * sensitivity;
   camState.pitch -= input.lookDY * sensitivity * 0.7;
   camState.pitch = Math.max(0.08, Math.min(1.25, camState.pitch));
 }
 
-export function updateThirdPersonCamera(camera, target, dt, distance = camState.distance, heightOffset = 1.6) {
+function updateThirdPersonCamera(camera, target, dt, distance = camState.distance, heightOffset = 1.6) {
   const dist = distance;
   const desired = new THREE.Vector3(
     target.x + Math.sin(camState.yaw) * Math.cos(camState.pitch) * dist,
@@ -29,7 +27,7 @@ function limb(w, h, d, color) {
   return m;
 }
 
-export function createAstronaut(suitColor = 0xe8e8e8) {
+function createAstronaut(suitColor = 0xe8e8e8) {
   const group = new THREE.Group();
   group.name = 'astronaut';
 
@@ -72,20 +70,20 @@ export function createAstronaut(suitColor = 0xe8e8e8) {
   flameR.position.x = 0.14;
   group.add(flameL, flameR);
 
-  // gun
+  // gun — held by the right hand, so it swings with the arm instead of floating in place
   const gun = new THREE.Group();
   const gunBody = limb(0.1, 0.14, 0.45, 0x333333);
-  gunBody.position.z = 0.2;
+  gunBody.position.z = 0.28;
   gun.add(gunBody);
-  gun.position.set(0.5, 1.15, 0.15);
-  group.add(gun);
+  gun.position.set(0.16, -0.56, 0.06);
+  armR.add(gun);
 
   group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gun, flameMat: [flameL.material, flameR.material] };
   return group;
 }
 
 // ===================== PLAYER CONTROLLER =====================
-export class Player {
+class Player {
   constructor(opts = {}) {
     this.mesh = createAstronaut();
     this.mesh.position.set(opts.x || 0, 0, opts.z || 0);
@@ -105,6 +103,7 @@ export class Player {
     this.recoil = 0;
 
     this.onFire = opts.onFire || (() => {});
+    this.onJump = opts.onJump || (() => {});
     this.getGroundHeight = opts.getGroundHeight || (() => 0);
   }
 
@@ -131,9 +130,10 @@ export class Player {
     const moveX = input.moveX, moveY = input.moveY;
     const moving = Math.abs(moveX) > 0.05 || Math.abs(moveY) > 0.05;
 
-    // movement relative to camera yaw
+    // movement relative to camera yaw (camera sits behind the target looking forward,
+    // so "forward" for the player must point away from the camera, not toward it)
     const yaw = camState.yaw;
-    const fwd = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const move = new THREE.Vector3();
     move.addScaledVector(fwd, moveY);
@@ -157,6 +157,7 @@ export class Player {
     if (input.jumpPressed && this.onGround) {
       this.velY = this.jumpPower;
       this.onGround = false;
+      this.onJump();
     }
     this.velY += this.gravity * dt;
     this.mesh.position.y += this.velY * dt;
@@ -202,7 +203,7 @@ export class Player {
     // gun recoil
     if (this.recoil > 0) {
       this.recoil = Math.max(0, this.recoil - dt * 6);
-      u.gun.position.z = 0.15 - this.recoil * 0.12;
+      u.gun.position.z = 0.06 - this.recoil * 0.12;
     }
 
     // digging animation

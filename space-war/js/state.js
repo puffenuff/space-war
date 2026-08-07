@@ -1,7 +1,7 @@
 // ===================== GAME STATE + SAVE/LOAD =====================
 const SAVE_KEY = 'spacewar_save_v1';
 
-export function freshState() {
+function freshState() {
   return {
     playerName: 'Billy Bob',
     coins: 40,
@@ -19,20 +19,20 @@ export function freshState() {
   };
 }
 
-export let state = freshState();
+let state = freshState();
 
-export function resetState() {
+function resetState() {
   state = freshState();
   return state;
 }
 
-export function saveGame() {
+function saveGame() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(state));
   } catch (e) { /* storage unavailable, ignore */ }
 }
 
-export function loadGame() {
+function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
@@ -44,30 +44,30 @@ export function loadGame() {
   }
 }
 
-export function hasSave() {
+function hasSave() {
   try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
 }
 
-export function rocketPartsCount() {
+function rocketPartsCount() {
   return Object.values(state.rocketParts).filter(Boolean).length;
 }
 
-export function rocketReady() {
+function rocketReady() {
   return rocketPartsCount() >= 4;
 }
 
-export function consumeRocketParts() {
+function consumeRocketParts() {
   state.rocketParts = { engine: false, fuelTank: false, noseCone: false, fins: false };
 }
 
-export const UPGRADE_INFO = {
+const UPGRADE_INFO = {
   speed: { name: 'Boot Thrusters', desc: '+ move speed', base: 30, mult: 1.8 },
   jump: { name: 'Jetpack Booster', desc: '+ jump height', base: 25, mult: 1.8 },
   damage: { name: 'Blaster Coils', desc: '+ blaster damage', base: 35, mult: 1.9 },
   hull: { name: 'Suit Plating', desc: '+ max health', base: 30, mult: 1.8 },
 };
 
-export function upgradeCost(key) {
+function upgradeCost(key) {
   const info = UPGRADE_INFO[key];
   const lvl = state.upgrades[key];
   return Math.round(info.base * Math.pow(info.mult, lvl));

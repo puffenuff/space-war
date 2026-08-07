@@ -1,8 +1,3 @@
-import * as THREE from 'three';
-import { input, consumeOneShots } from './controls.js';
-import { applyLookInput, camState } from './player.js';
-import { createSpaceEnemy, updateSpaceEnemy, createProjectile, updateProjectiles, createExplosion, updateExplosions } from './enemies.js';
-import { PLANETS } from './data.js';
 
 function createShip() {
   const g = new THREE.Group();
@@ -27,7 +22,7 @@ function createShip() {
   return g;
 }
 
-export class SpaceFlight {
+class SpaceFlight {
   constructor(destPlanetId, opts = {}) {
     this.destPlanetId = destPlanetId;
     this.scene = new THREE.Scene();
@@ -114,6 +109,7 @@ export class SpaceFlight {
       const p = createProjectile(origin, new THREE.Vector3(0, 0, -1), { color: 0x8dffb0, speed: 60, damage: 12, owner: 'player' });
       this.scene.add(p);
       this.projectiles.push(p);
+      sfx.shoot();
     }
 
     this.spawnTimer -= dt;
@@ -127,6 +123,7 @@ export class SpaceFlight {
         const p = createProjectile(origin, dir, { color: 0xff5050, speed: 26, damage: 8, owner: 'enemy' });
         this.scene.add(p);
         this.enemyProjectiles.push(p);
+        sfx.enemyShoot();
       });
     });
 
@@ -148,7 +145,10 @@ export class SpaceFlight {
             this.explosions.push(createExplosion(this.scene, e.position, 0xffaa33));
             this.scene.remove(e);
             this.kills++;
+            sfx.explosion();
             callbacks.onEnemyKilled && callbacks.onEnemyKilled();
+          } else {
+            sfx.hit();
           }
           break;
         }
@@ -164,6 +164,7 @@ export class SpaceFlight {
         this.explosions.push(createExplosion(this.scene, this.ship.position.clone(), 0xff5050, 8));
         this.scene.remove(p);
         this.enemyProjectiles.splice(i, 1);
+        sfx.playerHurt();
         callbacks.onPlayerHit && callbacks.onPlayerHit(this.health);
       }
     }

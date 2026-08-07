@@ -1,43 +1,43 @@
 // ===================== UI HELPERS =====================
 const $ = (id) => document.getElementById(id);
 
-export function showLoading(show) {
+function showLoading(show) {
   $('loading-screen').classList.toggle('hidden', !show);
 }
 
-export function showTitleScreen(show) {
+function showTitleScreen(show) {
   $('title-screen').classList.toggle('hidden', !show);
 }
 
-export function showHUD(show) {
+function showHUD(show) {
   $('hud').classList.toggle('hidden', !show);
   $('btn-missions').classList.toggle('hidden', !show);
 }
 
-export function setContinueEnabled(enabled) {
+function setContinueEnabled(enabled) {
   $('btn-continue').style.display = enabled ? 'inline-block' : 'none';
 }
 
-export function updateHealth(health, max) {
+function updateHealth(health, max) {
   const pct = Math.max(0, Math.min(100, (health / max) * 100));
   $('health-bar').style.width = pct + '%';
   $('health-label').textContent = Math.max(0, Math.round(health));
 }
 
-export function updateCoins(coins) { $('coin-count').textContent = coins; }
-export function updateParts(count) { $('parts-count').textContent = count; }
+function updateCoins(coins) { $('coin-count').textContent = coins; }
+function updateParts(count) { $('parts-count').textContent = count; }
 
-export function setLocationLabel(text) { $('location-label').textContent = text; }
+function setLocationLabel(text) { $('location-label').textContent = text; }
 
-export function showInteractPrompt(text) {
+function showInteractPrompt(text) {
   const el = $('interact-prompt');
   el.textContent = text;
   el.classList.remove('hidden');
 }
-export function hideInteractPrompt() { $('interact-prompt').classList.add('hidden'); }
+function hideInteractPrompt() { $('interact-prompt').classList.add('hidden'); }
 
 let toastTimer = null;
-export function showToast(text) {
+function showToast(text) {
   const el = $('pickup-toast');
   el.textContent = text;
   el.classList.remove('hidden');
@@ -48,30 +48,30 @@ export function showToast(text) {
   toastTimer = setTimeout(() => el.classList.add('hidden'), 1400);
 }
 
-export function showDigProgress(pct) {
+function showDigProgress(pct) {
   $('dig-progress-wrap').classList.remove('hidden');
   $('dig-progress-bar').style.width = Math.round(pct * 100) + '%';
 }
-export function hideDigProgress() { $('dig-progress-wrap').classList.add('hidden'); }
+function hideDigProgress() { $('dig-progress-wrap').classList.add('hidden'); }
 
-export function showCrosshair(show) { $('crosshair').classList.toggle('hidden', !show); }
+function showCrosshair(show) { $('crosshair').classList.toggle('hidden', !show); }
 
-export function openPanel(title, bodyNode) {
+function openPanel(title, bodyNode) {
   $('panel-title').textContent = title;
   const body = $('panel-body');
   body.innerHTML = '';
   body.appendChild(bodyNode);
   $('panel-backdrop').classList.remove('hidden');
 }
-export function closePanel() { $('panel-backdrop').classList.add('hidden'); }
-export function isPanelOpen() { return !$('panel-backdrop').classList.contains('hidden'); }
+function closePanel() { $('panel-backdrop').classList.add('hidden'); }
+function isPanelOpen() { return !$('panel-backdrop').classList.contains('hidden'); }
 
-export function initPanelClose(onClose) {
+function initPanelClose(onClose) {
   $('panel-close').addEventListener('click', () => { closePanel(); onClose && onClose(); });
   $('panel-backdrop').addEventListener('click', (e) => { if (e.target.id === 'panel-backdrop') { closePanel(); onClose && onClose(); } });
 }
 
-export function renderMissionTracker(list) {
+function renderMissionTracker(list) {
   const el = $('mission-tracker');
   const active = list.filter((m) => !m.prog.done).slice(0, 3);
   if (active.length === 0) { el.innerHTML = ''; return; }
@@ -79,18 +79,28 @@ export function renderMissionTracker(list) {
 }
 
 let bigMsgTimer = null;
-export function showBigMessage(title, subtitle, durationMs = 3200) {
+function showBigMessage(title, subtitle, durationMs = 3200) {
   const el = $('big-message');
   el.innerHTML = `<h2>${title}</h2><p>${subtitle}</p>`;
   el.classList.remove('hidden');
   clearTimeout(bigMsgTimer);
   if (durationMs > 0) bigMsgTimer = setTimeout(() => el.classList.add('hidden'), durationMs);
 }
-export function hideBigMessage() { $('big-message').classList.add('hidden'); }
+function hideBigMessage() { $('big-message').classList.add('hidden'); }
 
-export function showStarmapHint(text) {
+function showStarmapHint(text) {
   const el = $('starmap-hint');
   if (!text) { el.classList.add('hidden'); return; }
   el.textContent = text;
   el.classList.remove('hidden');
 }
+
+// game.js calls these as ui.xxx(...), so bundle them into a namespace object.
+const ui = {
+  showLoading, showTitleScreen, showHUD, setContinueEnabled,
+  updateHealth, updateCoins, updateParts, setLocationLabel,
+  showInteractPrompt, hideInteractPrompt, showToast,
+  showDigProgress, hideDigProgress, showCrosshair,
+  openPanel, closePanel, isPanelOpen, initPanelClose,
+  renderMissionTracker, showBigMessage, hideBigMessage, showStarmapHint,
+};

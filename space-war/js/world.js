@@ -1,6 +1,3 @@
-import * as THREE from 'three';
-import { terrainHeight, valueNoise } from './noise.js';
-import { PLANETS } from './data.js';
 
 function seededRand(seed) {
   let s = seed;
@@ -48,7 +45,7 @@ function makeSparkle(color) {
   return pts;
 }
 
-export function buildPlanetScene(planetId) {
+function buildPlanetScene(planetId) {
   const planet = PLANETS[planetId];
   const seed = planetId * 133.7;
   const rand = seededRand(planetId * 991 + 7);

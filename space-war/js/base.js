@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-import { createRover } from './vehicles.js';
 
 function makeLabel(text, color = '#eaffff') {
   const canvas = document.createElement('canvas');
@@ -38,7 +36,7 @@ function buildShopBuilding(color, label) {
   return g;
 }
 
-export function buildBaseScene() {
+function buildBaseScene() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x0a1330);
   scene.fog = new THREE.Fog(0x0a1330, 60, 220);
