@@ -2,6 +2,10 @@
 const SAVE_KEY = 'spacewar_save_v1';
 
 function freshState() {
+  const planets = {};
+  PLANET_ID_LIST.forEach((id) => {
+    planets[id] = { unlocked: id === 1, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false };
+  });
   return {
     playerName: 'Billy Bob',
     coins: 40,
@@ -10,11 +14,7 @@ function freshState() {
     inventory: { scrap: 0, tools: 0, food: 0 },
     upgrades: { speed: 0, jump: 0, damage: 0, hull: 0 }, // each level 0-3
     rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false },
-    planets: {
-      1: { unlocked: true, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false },
-      2: { unlocked: false, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false },
-      3: { unlocked: false, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false },
-    },
+    planets,
     location: 'base',
   };
 }
@@ -37,7 +37,10 @@ function loadGame() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return false;
     const parsed = JSON.parse(raw);
-    Object.assign(state, freshState(), parsed);
+    const fresh = freshState();
+    Object.assign(state, fresh, parsed);
+    // deep-merge planets so an older save (fewer worlds) doesn't wipe out newly added planets
+    state.planets = Object.assign({}, fresh.planets, parsed.planets || {});
     return true;
   } catch (e) {
     return false;

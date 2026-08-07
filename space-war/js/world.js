@@ -170,31 +170,56 @@ function buildPlanetScene(planetId) {
   }
 
   // ---- cave interior (built far away, teleport target) ----
+  const caveRadius = 32;
+  const caveHeight = 17;
   const caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
   const caveGroup = new THREE.Group();
   caveGroup.position.copy(caveOrigin);
-  const caveFloor = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 1, 16), new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 }));
+  const caveFloor = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 }));
   caveFloor.position.y = -0.5;
   caveGroup.add(caveFloor);
-  const caveWall = new THREE.Mesh(new THREE.CylinderGeometry(14.4, 14.4, 8, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 1, side: THREE.BackSide }));
-  caveWall.position.y = 3.5;
+  const caveWall = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 1, side: THREE.BackSide }));
+  caveWall.position.y = caveHeight / 2 - 0.5;
   caveGroup.add(caveWall);
-  const caveCeil = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 1, 16), new THREE.MeshStandardMaterial({ color: 0x14141a, roughness: 1, side: THREE.DoubleSide }));
-  caveCeil.position.y = 7.5;
+  const caveCeil = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: 0x14141a, roughness: 1, side: THREE.DoubleSide }));
+  caveCeil.position.y = caveHeight - 0.5;
   caveGroup.add(caveCeil);
-  const caveLight = new THREE.PointLight(0x6fd7ff, 1.6, 30);
-  caveLight.position.set(0, 5, 0);
-  caveGroup.add(caveLight);
+
+  // two point lights so the far side of the bigger room isn't pitch black
+  const caveLightA = new THREE.PointLight(0x6fd7ff, 1.8, 60);
+  caveLightA.position.set(0, caveHeight * 0.55, 0);
+  caveGroup.add(caveLightA);
+  const caveLightB = new THREE.PointLight(0x8a6fff, 1.2, 55);
+  caveLightB.position.set(caveRadius * 0.45, caveHeight * 0.4, -caveRadius * 0.45);
+  caveGroup.add(caveLightB);
+
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
-  for (let i = 0; i < 5; i++) {
+  const glowOrbCount = 10;
+  for (let i = 0; i < glowOrbCount; i++) {
     const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
-    const a = (i / 5) * Math.PI * 2;
-    o.position.set(Math.cos(a) * 10, 0.5, Math.sin(a) * 10);
+    const a = (i / glowOrbCount) * Math.PI * 2;
+    o.position.set(Math.cos(a) * caveRadius * 0.72, 0.5, Math.sin(a) * caveRadius * 0.72);
     caveGroup.add(o);
   }
-  // cave loot chest
+
+  // scattered stalagmite/rock formations to fill the bigger room
+  const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
+  const stalagMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
+  const caveRand = seededRand(planetId * 47 + 501);
+  for (let i = 0; i < 14; i++) {
+    const a = caveRand() * Math.PI * 2;
+    const r = 6 + caveRand() * (caveRadius - 10);
+    const s = new THREE.Mesh(stalagGeo, stalagMat);
+    const h = 1.5 + caveRand() * 3.5;
+    s.scale.set(0.8 + caveRand() * 1.2, h, 0.8 + caveRand() * 1.2);
+    s.position.set(Math.cos(a) * r, -0.5 + h / 2, Math.sin(a) * r);
+    s.rotation.y = caveRand() * Math.PI;
+    caveGroup.add(s);
+  }
+
+  // cave loot chest, pushed out into the larger room
   const chest = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.9), new THREE.MeshStandardMaterial({ color: 0xd4a531, metalness: 0.5, roughness: 0.4 }));
-  chest.position.set(0, -0.05, -4);
+  chest.position.set(0, -0.05, -caveRadius * 0.55);
   chest.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest.position) };
   caveGroup.add(chest);
   // cave exit beacon
@@ -204,7 +229,7 @@ function buildPlanetScene(planetId) {
   const exitLight = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 10), new THREE.MeshStandardMaterial({ color: 0xff9c4a, emissive: 0xcc6a20, emissiveIntensity: 0.8 }));
   exitLight.position.y = 3.1;
   caveExit.add(exitPole, exitLight);
-  caveExit.position.set(0, 0, 5);
+  caveExit.position.set(0, 0, caveRadius * 0.4);
   caveExit.userData = { type: 'caveExit', label: 'Exit Cave', worldPos: caveOrigin.clone().add(caveExit.position) };
   caveGroup.add(caveExit);
   scene.add(caveGroup);

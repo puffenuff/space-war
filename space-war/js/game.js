@@ -308,7 +308,7 @@ function promptLabelFor(obj) {
     if (d.type === 'returnBeacon') return 'Return to Base';
     if (d.type === 'vehicle') return d.repaired ? 'Enter Rover' : `Hold to Repair (needs 2 Tools, have ${state.inventory.tools})`;
     if (d.type === 'digSite') return 'Hold to Dig';
-    if (d.type === 'lostRocket') return state.planets[3].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
+    if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
     if (d.type === 'caveExit') return 'Exit Cave';
   }
   return 'Interact';
@@ -393,7 +393,7 @@ function openShop(shopKey) {
 
 function openStarmap() {
   const body = document.createElement('div');
-  [1, 2, 3].forEach((id) => {
+  PLANET_ID_LIST.forEach((id) => {
     const p = state.planets[id];
     const row = document.createElement('div');
     row.className = 'starmap-row';
@@ -414,9 +414,9 @@ function openStarmap() {
 }
 
 function tryLaunch() {
-  const frontier = Math.max(...[1, 2, 3].filter((id) => state.planets[id].unlocked));
-  if (frontier >= 3) {
-    if (state.planets[3].lostRocketFound) ui.showToast('SPACE WAR complete! Explore freely.');
+  const frontier = Math.max(...PLANET_ID_LIST.filter((id) => state.planets[id].unlocked));
+  if (frontier >= PLANET_COUNT) {
+    if (state.planets[PLANET_COUNT].lostRocketFound) ui.showToast('SPACE WAR complete! Explore freely.');
     else ui.showToast('Find the Lost Rocket Ship on Xenar Prime!');
     sfx.denied();
     return;
@@ -430,14 +430,14 @@ function tryLaunch() {
 }
 
 function exploreLostRocket() {
-  if (state.planets[3].lostRocketFound) return;
-  state.planets[3].lostRocketFound = true;
-  state.planets[3].completed = true;
-  completeMissionByType(3, 'lostrocket', ui.showToast);
+  if (state.planets[PLANET_COUNT].lostRocketFound) return;
+  state.planets[PLANET_COUNT].lostRocketFound = true;
+  state.planets[PLANET_COUNT].completed = true;
+  completeMissionByType(PLANET_COUNT, 'lostrocket', ui.showToast);
   if (activeBuild.lostRocket) { activeBuild.scene.remove(activeBuild.lostRocket); activeBuild.lostRocket = null; }
   saveGame();
   sfx.win();
-  ui.showBigMessage('🚀 LOST ROCKET FOUND!', 'Billy Bob has completed SPACE WAR! Keep exploring all three worlds anytime.', 5000);
+  ui.showBigMessage('🚀 LOST ROCKET FOUND!', 'Billy Bob has completed SPACE WAR! Keep exploring all nine worlds anytime.', 5000);
 }
 
 // ===================== DIG / REPAIR HOLD LOGIC =====================
@@ -605,7 +605,7 @@ function tick() {
       onEnemyKilled: () => { state.coins += 12; ui.updateCoins(state.coins); },
       onPlayerHit: (hp) => { ui.updateHealth(hp, state.maxHealth); },
       onArrive: () => {
-        const frontier = Math.max(...[1, 2, 3].filter((id) => state.planets[id].unlocked));
+        const frontier = Math.max(...PLANET_ID_LIST.filter((id) => state.planets[id].unlocked));
         const progression = spaceFlight.destPlanetId === frontier + 1;
         onArriveSpace(spaceFlight.destPlanetId, progression);
       },
