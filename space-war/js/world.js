@@ -161,14 +161,28 @@ function buildPlanetScene(planetId) {
       x = (rand() - 0.5) * planet.size * 0.7;
       z = (rand() - 0.5) * planet.size * 0.7;
     } while (Math.hypot(x, z) < 16);
+    const kind = digKinds[i % digKinds.length];
+    const isCave = kind === 'cave';
     const mound = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 }));
     mound.position.set(x, groundHeightFn(x, z), z);
     mound.scale.y = 0.55;
-    const sparkle = makeSparkle(0xfff2a0);
+    const sparkle = makeSparkle(isCave ? 0x6fd7ff : 0xfff2a0);
     sparkle.position.set(x, groundHeightFn(x, z) + 0.5, z);
-    mound.userData = { type: 'digSite', dug: false, kind: digKinds[i % digKinds.length], id: `dig${planetId}_${i}`, sparkle };
-    scene.add(mound);
     scene.add(sparkle);
+
+    // cave entrances get a tall glowing beacon so they're spottable from across the map
+    let beam = null;
+    if (isCave) {
+      beam = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.45, 30, 8, 1, true),
+        new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false })
+      );
+      beam.position.set(x, groundHeightFn(x, z) + 15, z);
+      scene.add(beam);
+    }
+
+    mound.userData = { type: 'digSite', dug: false, kind, id: `dig${planetId}_${i}`, sparkle, beam };
+    scene.add(mound);
     digSites.push(mound);
   }
 
@@ -282,7 +296,15 @@ function buildPlanetScene(planetId) {
       scrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
       coinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
-      digSites.forEach((d) => { if (!d.userData.dug) d.userData.sparkle.rotation.y = t * 1.5; else d.userData.sparkle.visible = false; });
+      digSites.forEach((d) => {
+        if (!d.userData.dug) {
+          d.userData.sparkle.rotation.y = t * 1.5;
+          if (d.userData.beam) d.userData.beam.material.opacity = 0.22 + Math.sin(t * 2) * 0.12;
+        } else {
+          d.userData.sparkle.visible = false;
+          if (d.userData.beam) d.userData.beam.visible = false;
+        }
+      });
       beaconLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       if (lostRocket && !lostRocket.userData.found) lostRocket.rotation.y = Math.sin(t * 0.3) * 0.05;
       exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
