@@ -186,27 +186,68 @@ function buildBaseScene() {
   garageSign.position.set(24, 4.2, 4);
   scene.add(garageSign);
 
-  // ---- wardrobe stand (switch between found special outfits) ----
+  // ---- wardrobe stand: holographic display case for switching found outfits ----
   const wardrobe = new THREE.Group();
-  const wardrobePost = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 1.4, 12), new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.5, roughness: 0.4 }));
-  wardrobePost.position.y = 0.7;
+
+  // tiered glowing platform
+  const platformMat = new THREE.MeshStandardMaterial({ color: 0x1a2438, metalness: 0.6, roughness: 0.3 });
+  const platformBase = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 0.3, 16), platformMat);
+  platformBase.position.y = 0.15;
+  wardrobe.add(platformBase);
+  const platformMid = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 0.35, 16), platformMat);
+  platformMid.position.y = 0.5;
+  wardrobe.add(platformMid);
+  const wardrobePost = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.8, 1.0, 12), new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.6, roughness: 0.3 }));
+  wardrobePost.position.y = 1.15;
   wardrobe.add(wardrobePost);
-  const mannequinMat = new THREE.MeshStandardMaterial({ color: 0xd8dfe8, emissive: 0x3a4a5a, emissiveIntensity: 0.4, metalness: 0.3, roughness: 0.4 });
+
+  // holographic energy field encasing the mannequin
+  const fieldMat = new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
+  const field = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 3.4, 16, 1, true), fieldMat);
+  field.position.y = 2.6;
+  wardrobe.add(field);
+
+  // mannequin with arms for a more humanoid silhouette
+  const mannequinMat = new THREE.MeshStandardMaterial({ color: 0xd8dfe8, emissive: 0x3a5a7a, emissiveIntensity: 0.5, metalness: 0.3, roughness: 0.4 });
   const mannTorso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.4), mannequinMat);
-  mannTorso.position.y = 1.7;
+  mannTorso.position.y = 1.9;
   wardrobe.add(mannTorso);
+  const mannArmGeo = new THREE.CylinderGeometry(0.09, 0.09, 0.7, 8);
+  const mannArmL = new THREE.Mesh(mannArmGeo, mannequinMat); mannArmL.position.set(-0.4, 1.75, 0); mannArmL.rotation.z = 0.25;
+  const mannArmR = new THREE.Mesh(mannArmGeo, mannequinMat); mannArmR.position.set(0.4, 1.75, 0); mannArmR.rotation.z = -0.25;
+  wardrobe.add(mannArmL, mannArmR);
   const mannHead = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mannequinMat);
-  mannHead.position.y = 2.25;
+  mannHead.position.y = 2.45;
   wardrobe.add(mannHead);
-  const wardrobeRing = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 8, 20), new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
-  wardrobeRing.rotation.x = Math.PI / 2;
-  wardrobeRing.position.y = 0.02;
-  wardrobe.add(wardrobeRing);
+  const mannVisor = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.6), new THREE.MeshStandardMaterial({ color: 0x0a2a3a, emissive: 0x6fd7ff, emissiveIntensity: 0.6, metalness: 0.6, roughness: 0.15 }));
+  mannVisor.position.set(0, 2.45, 0.14);
+  wardrobe.add(mannVisor);
+
+  // counter-rotating holographic rings
+  const ringA = new THREE.Mesh(new THREE.TorusGeometry(0.95, 0.04, 8, 24), new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
+  ringA.rotation.x = Math.PI / 2; ringA.position.y = 1.0;
+  wardrobe.add(ringA);
+  const ringB = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.035, 8, 24), new THREE.MeshBasicMaterial({ color: 0xa66fff }));
+  ringB.rotation.x = Math.PI / 2; ringB.position.y = 3.4;
+  wardrobe.add(ringB);
+  const groundRing = new THREE.Mesh(new THREE.TorusGeometry(1.9, 0.05, 8, 24), new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
+  groundRing.rotation.x = Math.PI / 2; groundRing.position.y = 0.02;
+  wardrobe.add(groundRing);
+
+  // small orbiting glow motes
+  const moteGeo = new THREE.SphereGeometry(0.08, 8, 8);
+  const motes = [];
+  for (let i = 0; i < 5; i++) {
+    const mote = new THREE.Mesh(moteGeo, new THREE.MeshBasicMaterial({ color: i % 2 === 0 ? 0x6fd7ff : 0xa66fff }));
+    wardrobe.add(mote);
+    motes.push(mote);
+  }
+
   wardrobe.position.set(-24, 0, -4);
-  wardrobe.userData = { type: 'wardrobe', label: 'Wardrobe' };
+  wardrobe.userData = { type: 'wardrobe', label: 'Wardrobe', ringA, ringB, motes, mannVisor };
   scene.add(wardrobe);
   const wardrobeSign = makeLabel('WARDROBE', '#6fd7ff');
-  wardrobeSign.position.set(-24, 3.4, -4);
+  wardrobeSign.position.set(-24, 4.4, -4);
   scene.add(wardrobeSign);
 
   return {
@@ -218,6 +259,13 @@ function buildBaseScene() {
       orb.rotation.y = t;
       glassDome.material.opacity = 0.16 + Math.sin(t * 0.5) * 0.03;
       mannHead.rotation.y = Math.sin(t * 0.7) * 0.3;
+      ringA.rotation.z = t * 1.4;
+      ringB.rotation.z = -t * 0.9;
+      mannVisor.material.emissiveIntensity = 0.5 + Math.sin(t * 3) * 0.3;
+      motes.forEach((m, i) => {
+        const a = t * 0.8 + (i / motes.length) * Math.PI * 2;
+        m.position.set(Math.cos(a) * 1.5, 1.6 + Math.sin(t * 1.5 + i) * 0.6, Math.sin(a) * 1.5);
+      });
     },
   };
 }

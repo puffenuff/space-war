@@ -159,6 +159,7 @@ function enterCave(digSite) {
   const exitPos = build.caveExit.position;
   player.mesh.position.set(build.caveOrigin.x + exitPos.x, build.caveOrigin.y, build.caveOrigin.z + exitPos.z - 2);
   player.heading = Math.PI;
+  if (build.ambient) build.ambient.intensity = 0.1;
 }
 
 function exitCave() {
@@ -167,6 +168,7 @@ function exitCave() {
   const pos = caveReturnPos || build.spawnPoint;
   player.mesh.position.set(pos.x, build.groundHeightFn(pos.x, pos.z), pos.z + 2);
   player.heading = Math.PI;
+  if (build.ambient) build.ambient.intensity = 0.55;
 }
 
 function exitVehicleIfAny(keepScene = true) {
@@ -251,6 +253,27 @@ function collectiblesTick(dt) {
       ui.showToast(`${labelForPart(b.partPickup.userData.part)} acquired!`);
     }
   } else {
+    (b.caveScrapPickups || []).forEach((m) => {
+      if (m.userData.collected) return;
+      if (pPos.distanceTo(m.userData.worldPos) < range) {
+        m.userData.collected = true;
+        m.visible = false;
+        state.inventory.scrap += 1;
+        sfx.scrap();
+        progressCollect(currentPlanetId, missionToast);
+        ui.showToast('+1 Scrap');
+      }
+    });
+    (b.caveCoinPickups || []).forEach((m) => {
+      if (m.userData.collected) return;
+      if (pPos.distanceTo(m.userData.worldPos) < range) {
+        m.userData.collected = true;
+        m.visible = false;
+        state.coins += m.userData.value;
+        sfx.coin();
+        ui.showToast(`+${m.userData.value} Coins`);
+      }
+    });
     (b.caveTreasures || [b.chest]).forEach((c) => {
       if (c.userData.collected) return;
       if (pPos.distanceTo(c.userData.worldPos) < 1.8) {

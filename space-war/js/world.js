@@ -45,6 +45,128 @@ function makeSparkle(color) {
   return pts;
 }
 
+// a single large, theme-matched landmark structure to make each world feel distinct
+function buildLandmark(planet, groundHeightFn, rand) {
+  const group = new THREE.Group();
+  const glowParts = [];
+
+  switch (planet.theme) {
+    case 'desert': { // sun-bleached rock arch
+      const legMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
+      const legGeo = new THREE.CylinderGeometry(2.2, 3.2, 18, 8);
+      const legL = new THREE.Mesh(legGeo, legMat); legL.position.set(-9, 9, 0); legL.rotation.z = 0.18;
+      const legR = new THREE.Mesh(legGeo, legMat); legR.position.set(9, 9, 0); legR.rotation.z = -0.18;
+      group.add(legL, legR);
+      const archCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(-9, 17, 0), new THREE.Vector3(0, 25, 0), new THREE.Vector3(9, 17, 0)]);
+      const arch = new THREE.Mesh(new THREE.TubeGeometry(archCurve, 20, 2.6, 8, false), legMat);
+      group.add(arch);
+      break;
+    }
+    case 'ice': { // ice spire cluster
+      const iceMat = new THREE.MeshStandardMaterial({ color: 0xcdeeff, roughness: 0.15, metalness: 0.3, transparent: true, opacity: 0.88, emissive: 0x3a6a8a, emissiveIntensity: 0.35 });
+      for (let i = 0; i < 6; i++) {
+        const h = 12 + rand() * 22;
+        const spire = new THREE.Mesh(new THREE.ConeGeometry(1.5 + rand() * 1.6, h, 6), iceMat);
+        const a = (i / 6) * Math.PI * 2, r = rand() * 7;
+        spire.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+        spire.rotation.y = rand() * Math.PI;
+        group.add(spire);
+      }
+      break;
+    }
+    case 'volcanic': { // active lava vent
+      const rockMat = new THREE.MeshStandardMaterial({ color: 0x2a1408, roughness: 1 });
+      const cone = new THREE.Mesh(new THREE.CylinderGeometry(6, 15, 17, 10, 1, true), rockMat);
+      cone.position.y = 8.5;
+      group.add(cone);
+      const lava = new THREE.Mesh(new THREE.CircleGeometry(5.5, 16), new THREE.MeshStandardMaterial({ color: 0xff5522, emissive: 0xff3300, emissiveIntensity: 1.2 }));
+      lava.rotation.x = -Math.PI / 2;
+      lava.position.y = 16.9;
+      group.add(lava);
+      glowParts.push(lava.material);
+      break;
+    }
+    case 'jungle': { // overgrown watchtower
+      const towerMat = new THREE.MeshStandardMaterial({ color: 0x5a4a3a, roughness: 1 });
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(3, 4, 27, 10), towerMat);
+      tower.position.y = 13.5;
+      group.add(tower);
+      const vineMat = new THREE.MeshStandardMaterial({ color: 0x2a6a2a, roughness: 1 });
+      for (let i = 0; i < 10; i++) {
+        const vine = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6 + rand() * 11, 5), vineMat);
+        const a = rand() * Math.PI * 2;
+        vine.position.set(Math.cos(a) * 3.6, 6 + rand() * 15, Math.sin(a) * 3.6);
+        vine.rotation.z = (rand() - 0.5) * 0.4;
+        group.add(vine);
+      }
+      break;
+    }
+    case 'swamp': { // sunken ruin obelisk
+      const obeMat = new THREE.MeshStandardMaterial({ color: 0x3a3a2a, roughness: 1 });
+      const obelisk = new THREE.Mesh(new THREE.CylinderGeometry(1, 2.6, 21, 4), obeMat);
+      obelisk.position.y = 8; obelisk.rotation.y = Math.PI / 4; obelisk.rotation.z = 0.13;
+      group.add(obelisk);
+      const glowRune = new THREE.Mesh(new THREE.CircleGeometry(1.2, 6), new THREE.MeshStandardMaterial({ color: 0x8affb0, emissive: 0x2a8a4a, emissiveIntensity: 0.9 }));
+      glowRune.position.set(0.6, 7, 1.4); glowRune.rotation.y = 0.6;
+      group.add(glowRune);
+      glowParts.push(glowRune.material);
+      break;
+    }
+    case 'canyon': { // natural rock bridge
+      const rockMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
+      const span = new THREE.Mesh(new THREE.BoxGeometry(30, 2.6, 4.2), rockMat);
+      span.position.y = 14.5; span.rotation.z = 0.05;
+      group.add(span);
+      const pierL = new THREE.Mesh(new THREE.BoxGeometry(4.2, 14, 4.2), rockMat); pierL.position.set(-13, 7, 0);
+      const pierR = new THREE.Mesh(new THREE.BoxGeometry(4.2, 14, 4.2), rockMat); pierR.position.set(13, 7, 0);
+      group.add(pierL, pierR);
+      break;
+    }
+    case 'crystal': { // towering crystal spires
+      const cMat = new THREE.MeshStandardMaterial({ color: 0xd63aff, emissive: 0x8a1acc, emissiveIntensity: 0.65, metalness: 0.4, roughness: 0.2 });
+      for (let i = 0; i < 7; i++) {
+        const h = 10 + rand() * 24;
+        const sp = new THREE.Mesh(new THREE.ConeGeometry(1.2 + rand(), h, 5), cMat);
+        const a = (i / 7) * Math.PI * 2, r = rand() * 8;
+        sp.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+        group.add(sp);
+      }
+      glowParts.push(cMat);
+      break;
+    }
+    case 'storm': { // lightning-rod tower
+      const towerMat = new THREE.MeshStandardMaterial({ color: 0x3a4550, metalness: 0.6, roughness: 0.4 });
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(1, 2.4, 29, 8), towerMat);
+      tower.position.y = 14.5;
+      group.add(tower);
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 6, 6), new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x8ac8ff, emissiveIntensity: 1 }));
+      rod.position.y = 32;
+      group.add(rod);
+      glowParts.push(rod.material);
+      break;
+    }
+    case 'alien':
+    default: { // ancient monolith ring
+      const monMat = new THREE.MeshStandardMaterial({ color: 0x2a1a44, emissive: 0x6a2aff, emissiveIntensity: 0.45, roughness: 0.6 });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const mono = new THREE.Mesh(new THREE.BoxGeometry(2, 12 + rand() * 7, 1.2), monMat);
+        mono.position.set(Math.cos(a) * 15, 6, Math.sin(a) * 15);
+        mono.rotation.y = a;
+        group.add(mono);
+      }
+      glowParts.push(monMat);
+      break;
+    }
+  }
+
+  const lx = planet.size * 0.3 * (rand() > 0.5 ? 1 : -1);
+  const lz = planet.size * 0.27 * (rand() > 0.5 ? 1 : -1);
+  group.position.set(lx, groundHeightFn(lx, lz), lz);
+  group.userData = { glowParts };
+  return group;
+}
+
 function buildPlanetScene(planetId) {
   const planet = PLANETS[planetId];
   const seed = planetId * 133.7;
@@ -70,6 +192,10 @@ function buildPlanetScene(planetId) {
   function groundHeightFn(x, z) {
     return terrainHeight(x, z, seed, 7 + planet.hills * 0.4);
   }
+
+  // ---- signature landmark ----
+  const landmark = buildLandmark(planet, groundHeightFn, rand);
+  scene.add(landmark);
 
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
@@ -202,26 +328,27 @@ function buildPlanetScene(planetId) {
   caveCeil.position.y = caveHeight - 0.5;
   caveGroup.add(caveCeil);
 
-  // several point lights so the much bigger room isn't pitch black at the edges
-  const caveLightA = new THREE.PointLight(0x6fd7ff, 1.8, caveRadius * 1.6);
+  // dim, moody point lights - pools of light rather than an evenly lit room
+  const caveLightA = new THREE.PointLight(0x6fd7ff, 1.1, caveRadius * 1.3);
   caveLightA.position.set(0, caveHeight * 0.55, 0);
   caveGroup.add(caveLightA);
-  const caveLightB = new THREE.PointLight(0x8a6fff, 1.2, caveRadius * 1.4);
+  const caveLightB = new THREE.PointLight(0x8a6fff, 0.75, caveRadius * 1.1);
   caveLightB.position.set(caveRadius * 0.45, caveHeight * 0.4, -caveRadius * 0.45);
   caveGroup.add(caveLightB);
-  const caveLightC = new THREE.PointLight(0x6fd7ff, 1.2, caveRadius * 1.4);
+  const caveLightC = new THREE.PointLight(0x6fd7ff, 0.75, caveRadius * 1.1);
   caveLightC.position.set(-caveRadius * 0.5, caveHeight * 0.4, caveRadius * 0.45);
   caveGroup.add(caveLightC);
-  const caveLightD = new THREE.PointLight(0x8a6fff, 1.0, caveRadius * 1.3);
+  const caveLightD = new THREE.PointLight(0x8a6fff, 0.6, caveRadius * 1.0);
   caveLightD.position.set(caveRadius * 0.5, caveHeight * 0.35, caveRadius * 0.5);
   caveGroup.add(caveLightD);
 
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
-  const glowOrbCount = Math.round(caveRadius * 0.3);
+  const glowOrbCount = Math.min(70, Math.round(caveRadius * 0.42));
   for (let i = 0; i < glowOrbCount; i++) {
     const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
     const a = (i / glowOrbCount) * Math.PI * 2;
-    o.position.set(Math.cos(a) * caveRadius * 0.72, 0.5, Math.sin(a) * caveRadius * 0.72);
+    const rr = caveRadius * (0.35 + (i % 3) * 0.2);
+    o.position.set(Math.cos(a) * rr, 0.5, Math.sin(a) * rr);
     caveGroup.add(o);
   }
 
@@ -229,7 +356,7 @@ function buildPlanetScene(planetId) {
   const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
   const stalagMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
   const caveRand = seededRand(planetId * 47 + 501);
-  const stalagCount = Math.round(caveRadius * 0.4);
+  const stalagCount = Math.min(95, Math.round(caveRadius * 0.6));
   for (let i = 0; i < stalagCount; i++) {
     const a = caveRand() * Math.PI * 2;
     const r = 6 + caveRand() * (caveRadius - 10);
@@ -239,6 +366,69 @@ function buildPlanetScene(planetId) {
     s.position.set(Math.cos(a) * r, -0.5 + h / 2, Math.sin(a) * r);
     s.rotation.y = caveRand() * Math.PI;
     caveGroup.add(s);
+  }
+
+  // glowing mineral crystal clusters, color-matched to this planet's outfit accent
+  const crystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.3 });
+  const crystalGeo = new THREE.ConeGeometry(0.4, 1, 5);
+  const crystalClusterCount = Math.min(24, Math.round(caveRadius / 10));
+  for (let i = 0; i < crystalClusterCount; i++) {
+    const a = caveRand() * Math.PI * 2;
+    const r = 8 + caveRand() * (caveRadius - 14);
+    const cluster = new THREE.Group();
+    const shardCount = 3 + Math.floor(caveRand() * 3);
+    for (let j = 0; j < shardCount; j++) {
+      const shard = new THREE.Mesh(crystalGeo, crystalMat);
+      const h = 0.6 + caveRand() * 1.4;
+      shard.scale.set(0.6 + caveRand() * 0.6, h, 0.6 + caveRand() * 0.6);
+      shard.position.set((caveRand() - 0.5) * 1.2, -0.5 + h / 2, (caveRand() - 0.5) * 1.2);
+      shard.rotation.z = (caveRand() - 0.5) * 0.3;
+      cluster.add(shard);
+    }
+    cluster.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    caveGroup.add(cluster);
+  }
+
+  // scrap and coin pickups underground too, so exploring is worth it
+  const caveScrapPickups = [];
+  const caveScrapCount = Math.min(20, Math.round(caveRadius / 12));
+  for (let i = 0; i < caveScrapCount; i++) {
+    const a = caveRand() * Math.PI * 2;
+    const r = 5 + caveRand() * (caveRadius - 10);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), new THREE.MeshStandardMaterial({ color: 0x8899a5, metalness: 0.7, roughness: 0.4 }));
+    const localPos = new THREE.Vector3(Math.cos(a) * r, 0.3, Math.sin(a) * r);
+    m.position.copy(localPos);
+    m.userData = { type: 'scrap', collected: false, spin: caveRand() * 10, worldPos: caveOrigin.clone().add(localPos) };
+    caveGroup.add(m);
+    caveScrapPickups.push(m);
+  }
+  const caveCoinPickups = [];
+  const caveCoinCount = Math.min(18, Math.round(caveRadius / 15));
+  for (let i = 0; i < caveCoinCount; i++) {
+    const a = caveRand() * Math.PI * 2;
+    const r = 5 + caveRand() * (caveRadius - 10);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14), new THREE.MeshStandardMaterial({ color: 0xffd35e, metalness: 0.8, roughness: 0.25, emissive: 0x553d00, emissiveIntensity: 0.3 }));
+    m.rotation.x = Math.PI / 2;
+    const localPos = new THREE.Vector3(Math.cos(a) * r, 0.35, Math.sin(a) * r);
+    m.position.copy(localPos);
+    m.userData = { type: 'coin', collected: false, value: 5 + Math.floor(caveRand() * 10), worldPos: caveOrigin.clone().add(localPos) };
+    caveGroup.add(m);
+    caveCoinPickups.push(m);
+  }
+
+  // rock columns that span floor to ceiling
+  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e1e26, roughness: 1 });
+  const pillarRand = seededRand(planetId * 71 + 909);
+  const pillarCount = Math.min(26, Math.max(4, Math.round(caveRadius / 12)));
+  for (let i = 0; i < pillarCount; i++) {
+    const a = pillarRand() * Math.PI * 2;
+    const r = 12 + pillarRand() * (caveRadius - 20);
+    const radiusTop = 0.6 + pillarRand() * 0.8;
+    const radiusBottom = 0.9 + pillarRand() * 1.1;
+    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, caveHeight, 7), pillarMat);
+    pillar.position.set(Math.cos(a) * r, caveHeight / 2 - 0.5, Math.sin(a) * r);
+    pillar.rotation.y = pillarRand() * Math.PI;
+    caveGroup.add(pillar);
   }
 
   // cave loot chests (two, spread across the bigger room)
@@ -274,7 +464,7 @@ function buildPlanetScene(planetId) {
 
   // cave enemy spawn points (positions only; game.js instantiates the actual enemies)
   const caveEnemySpawns = [];
-  const caveEnemyCount = Math.max(3, Math.round(caveRadius / 15));
+  const caveEnemyCount = Math.min(10, Math.max(3, Math.round(caveRadius / 15)));
   for (let i = 0; i < caveEnemyCount; i++) {
     const a = (i / caveEnemyCount) * Math.PI * 2 + 0.6;
     const r = caveRadius * 0.5;
@@ -326,10 +516,11 @@ function buildPlanetScene(planetId) {
 
   return {
     scene, groundHeightFn,
-    planet,
+    planet, ambient,
     spawnPoint: { x: 0, z: 6 },
     beacon, scrapPickups, coinPickups, partPickup, digSites,
     caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
+    caveScrapPickups, caveCoinPickups,
     wreckPos: [planet.wreckPos[0], wreckY, planet.wreckPos[2]],
     lostRocket,
     lostRocketSurface: planet.lostRocketPos ? { x: planet.lostRocketPos[0], z: planet.lostRocketPos[2] } : null,
@@ -338,6 +529,8 @@ function buildPlanetScene(planetId) {
     tick(dt, t) {
       scrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
       coinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
+      caveScrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
+      caveCoinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
       if (outfit && !outfit.userData.collected) { outfit.rotation.y = t * 0.8; outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15; }
       digSites.forEach((d) => {
@@ -352,6 +545,7 @@ function buildPlanetScene(planetId) {
       beaconLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       if (lostRocket && !lostRocket.userData.found) lostRocket.rotation.y = Math.sin(t * 0.3) * 0.05;
       exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
+      landmark.userData.glowParts.forEach((m) => { m.emissiveIntensity = 0.7 + Math.sin(t * 2.2) * 0.4; });
     },
   };
 }
