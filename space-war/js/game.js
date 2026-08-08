@@ -103,7 +103,7 @@ function ensurePlanetBuild(id) {
   build.projectiles = [];
   build.enemyProjectiles = [];
   build.explosions = [];
-  build.vehicle = createRover(build.wreckPos, state.planets[id].vehicleRepaired);
+  build.vehicle = createVehicle(build.planet.vehicleType || 'rover', build.wreckPos, state.planets[id].vehicleRepaired);
   build.scene.add(build.vehicle);
   build.enemySpawns.forEach((spawn) => {
     const e = createGroundEnemy(spawn);

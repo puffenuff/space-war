@@ -9,7 +9,7 @@ function seededRand(seed) {
 
 function buildTerrain(planet, seed) {
   const size = planet.size;
-  const segs = 90;
+  const segs = Math.min(160, Math.round(70 + size / 8));
   const geo = new THREE.PlaneGeometry(size, size, segs, segs);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -74,7 +74,8 @@ function buildPlanetScene(planetId) {
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
   const rockMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
-  for (let i = 0; i < 60; i++) {
+  const rockCount = Math.round(60 * (planet.size / 300));
+  for (let i = 0; i < rockCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.9;
     const z = (rand() - 0.5) * planet.size * 0.9;
     if (Math.hypot(x, z) < 20) continue;
@@ -102,7 +103,8 @@ function buildPlanetScene(planetId) {
   const scrapPickups = [];
   const scrapGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
   const scrapMat = new THREE.MeshStandardMaterial({ color: 0x8899a5, metalness: 0.7, roughness: 0.4 });
-  const scrapCount = planetId === 1 ? 9 : planetId === 2 ? 10 : 13;
+  const collectMission = MISSIONS[planetId] && MISSIONS[planetId].find((m) => m.type === 'collect');
+  const scrapCount = (collectMission ? collectMission.target : 8) + 4;
   for (let i = 0; i < scrapCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.75;
     const z = (rand() - 0.5) * planet.size * 0.75;
@@ -118,7 +120,8 @@ function buildPlanetScene(planetId) {
   const coinPickups = [];
   const coinGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14);
   const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd35e, metalness: 0.8, roughness: 0.25, emissive: 0x553d00, emissiveIntensity: 0.3 });
-  for (let i = 0; i < 10; i++) {
+  const coinCount = Math.round(10 * (planet.size / 300));
+  for (let i = 0; i < coinCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.8;
     const z = (rand() - 0.5) * planet.size * 0.8;
     if (Math.hypot(x, z) < 14) continue;
