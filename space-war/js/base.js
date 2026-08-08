@@ -186,14 +186,38 @@ function buildBaseScene() {
   garageSign.position.set(24, 4.2, 4);
   scene.add(garageSign);
 
+  // ---- wardrobe stand (switch between found special outfits) ----
+  const wardrobe = new THREE.Group();
+  const wardrobePost = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 1.4, 12), new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.5, roughness: 0.4 }));
+  wardrobePost.position.y = 0.7;
+  wardrobe.add(wardrobePost);
+  const mannequinMat = new THREE.MeshStandardMaterial({ color: 0xd8dfe8, emissive: 0x3a4a5a, emissiveIntensity: 0.4, metalness: 0.3, roughness: 0.4 });
+  const mannTorso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.8, 0.4), mannequinMat);
+  mannTorso.position.y = 1.7;
+  wardrobe.add(mannTorso);
+  const mannHead = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), mannequinMat);
+  mannHead.position.y = 2.25;
+  wardrobe.add(mannHead);
+  const wardrobeRing = new THREE.Mesh(new THREE.TorusGeometry(0.75, 0.05, 8, 20), new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
+  wardrobeRing.rotation.x = Math.PI / 2;
+  wardrobeRing.position.y = 0.02;
+  wardrobe.add(wardrobeRing);
+  wardrobe.position.set(-24, 0, -4);
+  wardrobe.userData = { type: 'wardrobe', label: 'Wardrobe' };
+  scene.add(wardrobe);
+  const wardrobeSign = makeLabel('WARDROBE', '#6fd7ff');
+  wardrobeSign.position.set(-24, 3.4, -4);
+  scene.add(wardrobeSign);
+
   return {
     scene, groundHeightFn,
     spawnPoint: { x: 0, z: 4 },
-    shops, padGroup, starMap, baseRover,
+    shops, padGroup, starMap, baseRover, wardrobe,
     tick(dt, t) {
       orb.position.y = 2.1 + Math.sin(t * 2) * 0.1;
       orb.rotation.y = t;
       glassDome.material.opacity = 0.16 + Math.sin(t * 0.5) * 0.03;
+      mannHead.rotation.y = Math.sin(t * 0.7) * 0.3;
     },
   };
 }

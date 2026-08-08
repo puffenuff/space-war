@@ -15,6 +15,8 @@ function freshState() {
     upgrades: { speed: 0, jump: 0, damage: 0, hull: 0 }, // each level 0-3
     rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false },
     planets,
+    outfitsFound: {},
+    equippedSuitColor: null,
     location: 'base',
   };
 }

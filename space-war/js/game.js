@@ -110,6 +110,11 @@ function ensurePlanetBuild(id) {
     build.scene.add(e);
     build.enemies.push(e);
   });
+  (build.caveEnemySpawns || []).forEach((spawn) => {
+    const e = createGroundEnemy(spawn);
+    build.scene.add(e);
+    build.enemies.push(e);
+  });
   if (build.lostRocket && build.lostRocketSurface) {
     for (let i = 0; i < 2; i++) {
       const gx = build.lostRocketSurface.x + (i === 0 ? 8 : -8);
@@ -246,19 +251,32 @@ function collectiblesTick(dt) {
       ui.showToast(`${labelForPart(b.partPickup.userData.part)} acquired!`);
     }
   } else {
-    if (!b.chest.userData.collected && pPos.distanceTo(new THREE.Vector3(b.caveOrigin.x + b.chest.position.x, player.mesh.position.y, b.caveOrigin.z + b.chest.position.z)) < 1.8) {
-      b.chest.userData.collected = true;
-      state.coins += 45;
-      state.inventory.tools += 1;
-      sfx.partFound();
-      ui.showToast('Cave Treasure! +45 Coins, +1 Tool');
+    (b.caveTreasures || [b.chest]).forEach((c) => {
+      if (c.userData.collected) return;
+      if (pPos.distanceTo(c.userData.worldPos) < 1.8) {
+        c.userData.collected = true;
+        const coinGain = 30 + Math.floor(Math.random() * 30);
+        state.coins += coinGain;
+        state.inventory.tools += 1;
+        sfx.partFound();
+        ui.showToast(`Cave Treasure! +${coinGain} Coins, +1 Tool`);
+      }
+    });
+    if (b.outfit && !b.outfit.userData.collected && pPos.distanceTo(b.outfit.userData.worldPos) < 2.0) {
+      b.outfit.userData.collected = true;
+      const hex = b.outfit.userData.suitColor;
+      state.outfitsFound[currentPlanetId] = hex;
+      state.equippedSuitColor = hex;
+      player.setSuitColor(hex);
+      sfx.win();
+      ui.showToast(`New Suit Found: ${b.planet.name} Outfit!`);
     }
   }
 }
 
 function findNearestInteractable() {
   if (mode === 'base') {
-    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap];
+    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap, activeBuild.wardrobe];
     if (!drivingVehicle) cands.push(activeBuild.baseRover);
     return nearestOf(cands, (o) => o.position, [3.6, 4.2, 3.6, 3]);
   }
@@ -303,6 +321,7 @@ function promptLabelFor(obj) {
     if (d.type === 'launchPad') return rocketReady() ? 'Assemble & Launch Rocket' : `Launch Pad (${rocketPartsCount()}/4 parts)`;
     if (d.type === 'starMap') return 'Open Star Map';
     if (d.type === 'vehicle') return 'Enter Rover';
+    if (d.type === 'wardrobe') return 'Change Outfit';
   } else {
     const d = obj.userData;
     if (d.type === 'returnBeacon') return 'Return to Base';
@@ -322,6 +341,7 @@ function handleInteractTap(obj) {
     if (d.type === 'starMap') { openStarmap(); return; }
     if (d.type === 'launchPad') { tryLaunch(); return; }
     if (d.type === 'vehicle') { enterVehicle(obj); return; }
+    if (d.type === 'wardrobe') { openWardrobe(); return; }
   } else {
     if (d.type === 'returnBeacon') { enterBase(); return; }
     if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
@@ -389,6 +409,57 @@ function openShop(shopKey) {
   }
   const title = { parts: '🔧 PARTS SHOP', upgrades: '⚡ UPGRADES', tools: '🛠 TOOL SHOP', food: '🍔 FOOD SHOP' }[shopKey];
   ui.openPanel(title, body);
+}
+
+function openWardrobe() {
+  const body = document.createElement('div');
+
+  const defaultRow = document.createElement('div');
+  defaultRow.className = 'starmap-row';
+  defaultRow.innerHTML = '<div><div class="si-name">Default Suit</div><div class="si-desc">Standard-issue white</div></div>';
+  const defaultBtn = document.createElement('button');
+  const defaultWorn = !state.equippedSuitColor;
+  defaultBtn.textContent = defaultWorn ? 'Worn' : 'Wear';
+  defaultBtn.disabled = defaultWorn;
+  defaultBtn.onclick = () => {
+    sfx.uiClick();
+    state.equippedSuitColor = null;
+    player.setSuitColor(0xe8e8e8);
+    saveGame();
+    openWardrobe();
+  };
+  defaultRow.appendChild(defaultBtn);
+  body.appendChild(defaultRow);
+
+  const foundIds = Object.keys(state.outfitsFound);
+  if (foundIds.length === 0) {
+    const hint = document.createElement('p');
+    hint.style.cssText = 'color:#9ab;font-size:13px;padding:6px 2px;';
+    hint.textContent = 'No special outfits found yet — look for a glowing suit inside a cave on each planet.';
+    body.appendChild(hint);
+  }
+  foundIds.forEach((idStr) => {
+    const id = Number(idStr);
+    const hex = state.outfitsFound[id];
+    const row = document.createElement('div');
+    row.className = 'starmap-row';
+    row.innerHTML = `<div><div class="si-name">${PLANETS[id].name} Outfit</div><div class="si-desc">Found in the ${PLANETS[id].name} cave</div></div>`;
+    const btn = document.createElement('button');
+    const isWorn = state.equippedSuitColor === hex;
+    btn.textContent = isWorn ? 'Worn' : 'Wear';
+    btn.disabled = isWorn;
+    btn.onclick = () => {
+      sfx.uiClick();
+      state.equippedSuitColor = hex;
+      player.setSuitColor(hex);
+      saveGame();
+      openWardrobe();
+    };
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+
+  ui.openPanel('🧥 WARDROBE', body);
 }
 
 function openStarmap() {
@@ -519,7 +590,6 @@ function completeRepair(vehicleMesh) {
 // ===================== COMBAT (ground) =====================
 function updateGroundCombat(dt) {
   const b = activeBuild;
-  if (inCave) return;
   b.enemies.forEach((e) => {
     if (!e.userData.alive) {
       if (e.userData.respawnAt && elapsed >= e.userData.respawnAt) {
@@ -704,6 +774,7 @@ document.getElementById('btn-new-game').addEventListener('click', () => {
   unlockAudio();
   resetState();
   applyUpgradeEffects();
+  if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
   ui.showTitleScreen(false);
   ui.showHUD(true);
   enterBase();
@@ -712,6 +783,7 @@ document.getElementById('btn-continue').addEventListener('click', () => {
   unlockAudio();
   loadGame();
   applyUpgradeEffects();
+  if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
   ui.showTitleScreen(false);
   ui.showHUD(true);
   enterBase();

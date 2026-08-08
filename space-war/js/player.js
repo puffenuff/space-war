@@ -85,7 +85,7 @@ function createAstronaut(suitColor = 0xe8e8e8) {
 // ===================== PLAYER CONTROLLER =====================
 class Player {
   constructor(opts = {}) {
-    this.mesh = createAstronaut();
+    this.mesh = createAstronaut(opts.suitColor || 0xe8e8e8);
     this.mesh.position.set(opts.x || 0, 0, opts.z || 0);
 
     this.heading = 0; // facing angle
@@ -108,6 +108,13 @@ class Player {
   }
 
   get position() { return this.mesh.position; }
+
+  setSuitColor(hex) {
+    const u = this.mesh.userData;
+    u.body.material.color.set(hex);
+    u.armL.material.color.set(hex);
+    u.armR.material.color.set(hex);
+  }
 
   addTo(scene) { scene.add(this.mesh); }
   removeFrom(scene) { scene.remove(this.mesh); }

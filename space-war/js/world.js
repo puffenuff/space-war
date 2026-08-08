@@ -186,9 +186,9 @@ function buildPlanetScene(planetId) {
     digSites.push(mound);
   }
 
-  // ---- cave interior (built far away, teleport target) ----
-  const caveRadius = 32;
-  const caveHeight = 17;
+  // ---- cave interior (built far away, teleport target); size differs per planet ----
+  const caveRadius = planet.caveRadius || 75;
+  const caveHeight = Math.round(caveRadius * 0.43);
   const caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
   const caveGroup = new THREE.Group();
   caveGroup.position.copy(caveOrigin);
@@ -202,16 +202,22 @@ function buildPlanetScene(planetId) {
   caveCeil.position.y = caveHeight - 0.5;
   caveGroup.add(caveCeil);
 
-  // two point lights so the far side of the bigger room isn't pitch black
-  const caveLightA = new THREE.PointLight(0x6fd7ff, 1.8, 60);
+  // several point lights so the much bigger room isn't pitch black at the edges
+  const caveLightA = new THREE.PointLight(0x6fd7ff, 1.8, caveRadius * 1.6);
   caveLightA.position.set(0, caveHeight * 0.55, 0);
   caveGroup.add(caveLightA);
-  const caveLightB = new THREE.PointLight(0x8a6fff, 1.2, 55);
+  const caveLightB = new THREE.PointLight(0x8a6fff, 1.2, caveRadius * 1.4);
   caveLightB.position.set(caveRadius * 0.45, caveHeight * 0.4, -caveRadius * 0.45);
   caveGroup.add(caveLightB);
+  const caveLightC = new THREE.PointLight(0x6fd7ff, 1.2, caveRadius * 1.4);
+  caveLightC.position.set(-caveRadius * 0.5, caveHeight * 0.4, caveRadius * 0.45);
+  caveGroup.add(caveLightC);
+  const caveLightD = new THREE.PointLight(0x8a6fff, 1.0, caveRadius * 1.3);
+  caveLightD.position.set(caveRadius * 0.5, caveHeight * 0.35, caveRadius * 0.5);
+  caveGroup.add(caveLightD);
 
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
-  const glowOrbCount = 10;
+  const glowOrbCount = Math.round(caveRadius * 0.3);
   for (let i = 0; i < glowOrbCount; i++) {
     const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
     const a = (i / glowOrbCount) * Math.PI * 2;
@@ -223,7 +229,8 @@ function buildPlanetScene(planetId) {
   const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
   const stalagMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
   const caveRand = seededRand(planetId * 47 + 501);
-  for (let i = 0; i < 14; i++) {
+  const stalagCount = Math.round(caveRadius * 0.4);
+  for (let i = 0; i < stalagCount; i++) {
     const a = caveRand() * Math.PI * 2;
     const r = 6 + caveRand() * (caveRadius - 10);
     const s = new THREE.Mesh(stalagGeo, stalagMat);
@@ -234,11 +241,46 @@ function buildPlanetScene(planetId) {
     caveGroup.add(s);
   }
 
-  // cave loot chest, pushed out into the larger room
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.9), new THREE.MeshStandardMaterial({ color: 0xd4a531, metalness: 0.5, roughness: 0.4 }));
+  // cave loot chests (two, spread across the bigger room)
+  const chestMat = new THREE.MeshStandardMaterial({ color: 0xd4a531, metalness: 0.5, roughness: 0.4 });
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.9), chestMat);
   chest.position.set(0, -0.05, -caveRadius * 0.55);
   chest.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest.position) };
   caveGroup.add(chest);
+
+  const chest2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 0.8), chestMat.clone());
+  chest2.position.set(caveRadius * 0.5, -0.12, caveRadius * 0.4);
+  chest2.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest2.position) };
+  caveGroup.add(chest2);
+  const caveTreasures = [chest, chest2];
+
+  // special suit pickup, unique per planet, permanently reskins the astronaut
+  const outfitColor = planet.outfitColor || 0xffffff;
+  const outfit = new THREE.Group();
+  const outfitMat = new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.6, metalness: 0.4, roughness: 0.3 });
+  const outfitTorso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.35), outfitMat);
+  outfitTorso.position.y = 0.55;
+  outfit.add(outfitTorso);
+  const outfitHead = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), outfitMat);
+  outfitHead.position.y = 1.05;
+  outfit.add(outfitHead);
+  const outfitRing = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 8, 20), new THREE.MeshBasicMaterial({ color: outfitColor }));
+  outfitRing.rotation.x = Math.PI / 2;
+  outfitRing.position.y = 0.05;
+  outfit.add(outfitRing);
+  outfit.position.set(-caveRadius * 0.5, 0.1, caveRadius * 0.35);
+  outfit.userData = { type: 'caveOutfit', collected: false, suitColor: outfitColor, worldPos: caveOrigin.clone().add(outfit.position) };
+  caveGroup.add(outfit);
+
+  // cave enemy spawn points (positions only; game.js instantiates the actual enemies)
+  const caveEnemySpawns = [];
+  const caveEnemyCount = Math.max(3, Math.round(caveRadius / 15));
+  for (let i = 0; i < caveEnemyCount; i++) {
+    const a = (i / caveEnemyCount) * Math.PI * 2 + 0.6;
+    const r = caveRadius * 0.5;
+    caveEnemySpawns.push({ x: caveOrigin.x + Math.cos(a) * r, y: caveOrigin.y, z: caveOrigin.z + Math.sin(a) * r });
+  }
+
   // cave exit beacon
   const caveExit = new THREE.Group();
   const exitPole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: 0x99a3b0 }));
@@ -287,15 +329,17 @@ function buildPlanetScene(planetId) {
     planet,
     spawnPoint: { x: 0, z: 6 },
     beacon, scrapPickups, coinPickups, partPickup, digSites,
-    caveGroup, caveOrigin, chest, caveExit,
+    caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
     wreckPos: [planet.wreckPos[0], wreckY, planet.wreckPos[2]],
     lostRocket,
     lostRocketSurface: planet.lostRocketPos ? { x: planet.lostRocketPos[0], z: planet.lostRocketPos[2] } : null,
     enemySpawns: buildEnemySpawns(planet, rand, groundHeightFn),
+    caveEnemySpawns,
     tick(dt, t) {
       scrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
       coinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
+      if (outfit && !outfit.userData.collected) { outfit.rotation.y = t * 0.8; outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15; }
       digSites.forEach((d) => {
         if (!d.userData.dug) {
           d.userData.sparkle.rotation.y = t * 1.5;
