@@ -457,40 +457,40 @@ function buildPlanetScene(planetId) {
   const caveFloor = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 }));
   caveFloor.position.y = -0.5;
   caveGroup.add(caveFloor);
-  const caveWall = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x1c1c22, roughness: 1, side: THREE.BackSide }));
+  const caveWall = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 1, side: THREE.BackSide }));
   caveWall.position.y = caveHeight / 2 - 0.5;
   caveGroup.add(caveWall);
-  const caveCeil = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: 0x14141a, roughness: 1, side: THREE.DoubleSide }));
+  const caveCeil = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: 0x1a140f, roughness: 1, side: THREE.DoubleSide }));
   caveCeil.position.y = caveHeight - 0.5;
   caveGroup.add(caveCeil);
 
-  // dim, moody point lights - pools of light rather than an evenly lit room
-  const caveLightA = new THREE.PointLight(0x6fd7ff, 1.1, caveRadius * 1.3);
+  // warm amber "dripstone cave" lighting, with one cool light for contrast (like the reference photo)
+  const caveLightA = new THREE.PointLight(0xffaa55, 1.3, caveRadius * 1.3);
   caveLightA.position.set(0, caveHeight * 0.55, 0);
   caveGroup.add(caveLightA);
-  const caveLightB = new THREE.PointLight(0x8a6fff, 0.75, caveRadius * 1.1);
+  const caveLightB = new THREE.PointLight(0xff8844, 0.85, caveRadius * 1.1);
   caveLightB.position.set(caveRadius * 0.45, caveHeight * 0.4, -caveRadius * 0.45);
   caveGroup.add(caveLightB);
-  const caveLightC = new THREE.PointLight(0x6fd7ff, 0.75, caveRadius * 1.1);
+  const caveLightC = new THREE.PointLight(0x6fd7ff, 0.6, caveRadius * 1.1);
   caveLightC.position.set(-caveRadius * 0.5, caveHeight * 0.4, caveRadius * 0.45);
   caveGroup.add(caveLightC);
-  const caveLightD = new THREE.PointLight(0x8a6fff, 0.6, caveRadius * 1.0);
+  const caveLightD = new THREE.PointLight(0xffaa55, 0.7, caveRadius * 1.0);
   caveLightD.position.set(caveRadius * 0.5, caveHeight * 0.35, caveRadius * 0.5);
   caveGroup.add(caveLightD);
 
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
   const glowOrbCount = Math.min(95, Math.round(caveRadius * 0.42));
   for (let i = 0; i < glowOrbCount; i++) {
-    const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
+    const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0x6fd7ff : 0xffaa55 }));
     const a = (i / glowOrbCount) * Math.PI * 2;
     const rr = caveRadius * (0.35 + (i % 3) * 0.2);
     o.position.set(Math.cos(a) * rr, 0.5, Math.sin(a) * rr);
     caveGroup.add(o);
   }
 
-  // scattered stalagmite/rock formations to fill the bigger room
+  // scattered stalagmite formations rising from the floor (warm limestone tone)
   const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
-  const stalagMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
+  const stalagMat = new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 1 });
   const caveRand = seededRand(planetId * 47 + 501);
   const stalagCount = Math.min(130, Math.round(caveRadius * 0.6));
   for (let i = 0; i < stalagCount; i++) {
@@ -503,6 +503,29 @@ function buildPlanetScene(planetId) {
     s.rotation.y = caveRand() * Math.PI;
     caveGroup.add(s);
   }
+
+  // dense hanging stalactites from the ceiling - the dominant feature of the reference cave
+  const stalactiteMat = new THREE.MeshStandardMaterial({ color: 0x5a4834, roughness: 1 });
+  const stalactiteCount = Math.min(160, Math.round(caveRadius * 0.75));
+  for (let i = 0; i < stalactiteCount; i++) {
+    const a = caveRand() * Math.PI * 2;
+    const r = caveRand() * (caveRadius - 4);
+    const t = new THREE.Mesh(stalagGeo, stalactiteMat);
+    const h = 1.2 + caveRand() * 4.5;
+    t.scale.set(0.6 + caveRand() * 0.9, h, 0.6 + caveRand() * 0.9);
+    t.rotation.x = Math.PI;
+    t.position.set(Math.cos(a) * r, caveHeight - 0.5 - h / 2, Math.sin(a) * r);
+    t.rotation.y = caveRand() * Math.PI;
+    caveGroup.add(t);
+  }
+
+  // still reflective water pool on the cave floor
+  const poolRadius = caveRadius * (0.28 + caveRand() * 0.1);
+  const poolMat = new THREE.MeshStandardMaterial({ color: 0x0a1420, metalness: 0.95, roughness: 0.06, envMapIntensity: 1.2 });
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(poolRadius, 28), poolMat);
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(caveRadius * 0.12, 0.01, -caveRadius * 0.12);
+  caveGroup.add(pool);
 
   // glowing mineral crystal clusters, color-matched to this planet's outfit accent
   const crystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.3 });
