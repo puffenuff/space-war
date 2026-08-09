@@ -482,10 +482,49 @@ function buildPlanetScene(planetId) {
   const caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
   const caveGroup = new THREE.Group();
   caveGroup.position.copy(caveOrigin);
-  const caveFloor = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 }));
+  // uneven rocky floor with subtle noise bumps and mineral color streaking
+  const floorGeo = new THREE.CircleGeometry(caveRadius, 48);
+  const floorPos = floorGeo.attributes.position;
+  const floorSeed = planetId * 233 + 41;
+  const floorColorA = new THREE.Color(planet.ground2);
+  const floorColorB = floorColorA.clone().multiplyScalar(0.6);
+  const floorColors = [];
+  for (let i = 0; i < floorPos.count; i++) {
+    const lx = floorPos.getX(i), ly = floorPos.getY(i);
+    const n = fbm(lx * 0.025, ly * 0.025, floorSeed, 3);
+    floorPos.setZ(i, (n - 0.5) * 0.5);
+    const c = floorColorA.clone().lerp(floorColorB, n);
+    floorColors.push(c.r, c.g, c.b);
+  }
+  floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(floorColors, 3));
+  floorGeo.computeVertexNormals();
+  const caveFloor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+  caveFloor.rotation.x = -Math.PI / 2;
   caveFloor.position.y = -0.5;
   caveGroup.add(caveFloor);
-  const caveWall = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 1, side: THREE.BackSide }));
+
+  // organic, uneven cave wall - bulges and alcoves instead of a perfect cylinder
+  const wallGeo = new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 28, 10, true);
+  const wallPosAttr = wallGeo.attributes.position;
+  const wallSeed = planetId * 191 + 71;
+  const wallColorA = new THREE.Color(0x2a2018);
+  const wallColorB = new THREE.Color(0x1c150f);
+  const wallColors = [];
+  for (let i = 0; i < wallPosAttr.count; i++) {
+    const wx = wallPosAttr.getX(i), wy = wallPosAttr.getY(i), wz = wallPosAttr.getZ(i);
+    const theta = Math.atan2(wz, wx);
+    const n = fbm(Math.cos(theta) * 2.4, Math.sin(theta) * 2.4 + wy * 0.06, wallSeed, 3);
+    const bump = (n - 0.5) * Math.min(9, caveRadius * 0.035);
+    const r = Math.hypot(wx, wz);
+    const newR = r + bump;
+    wallPosAttr.setX(i, Math.cos(theta) * newR);
+    wallPosAttr.setZ(i, Math.sin(theta) * newR);
+    const c = wallColorA.clone().lerp(wallColorB, n);
+    wallColors.push(c.r, c.g, c.b);
+  }
+  wallGeo.setAttribute('color', new THREE.Float32BufferAttribute(wallColors, 3));
+  wallGeo.computeVertexNormals();
+  const caveWall = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.BackSide }));
   caveWall.position.y = caveHeight / 2 - 0.5;
   caveGroup.add(caveWall);
   // uneven ceiling: some spots hang lower, some rise higher, but it always stays flush with the wall rim
