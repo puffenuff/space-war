@@ -324,6 +324,38 @@ function buildPlanetScene(planetId) {
     scene.add(cluster);
   }
 
+  // ---- jungle worlds get actual trees scattered across the surface ----
+  if (planet.theme === 'jungle') {
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x2a6a2a, roughness: 0.95 });
+    const canopyMat2 = new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.95 });
+    const treeCount = Math.round(70 * (planet.size / 300));
+    for (let i = 0; i < treeCount; i++) {
+      const x = (rand() - 0.5) * planet.size * 0.88;
+      const z = (rand() - 0.5) * planet.size * 0.88;
+      if (Math.hypot(x, z) < 18) continue;
+      const tree = new THREE.Group();
+      const h = 4 + rand() * 6;
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.22 + rand() * 0.15, 0.35 + rand() * 0.2, h, 6), trunkMat);
+      trunk.position.y = h / 2;
+      trunk.castShadow = true;
+      tree.add(trunk);
+      const canopyCount = 2 + Math.floor(rand() * 3);
+      for (let c = 0; c < canopyCount; c++) {
+        const cs = 1.3 + rand() * 1.4;
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(cs, 8, 6), rand() > 0.5 ? canopyMat : canopyMat2);
+        canopy.position.set((rand() - 0.5) * 1.4, h + cs * 0.4 + rand() * 1.0, (rand() - 0.5) * 1.4);
+        canopy.castShadow = true;
+        tree.add(canopy);
+      }
+      tree.position.set(x, groundHeightFn(x, z), z);
+      tree.rotation.y = rand() * Math.PI;
+      const s = 0.8 + rand() * 0.5;
+      tree.scale.set(s, s, s);
+      scene.add(tree);
+    }
+  }
+
   // ---- return beacon near spawn ----
   const beacon = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: 0x99a3b0, metalness: 0.6, roughness: 0.3 }));
@@ -410,13 +442,15 @@ function buildPlanetScene(planetId) {
     digSites.push(mound);
   }
 
-  // ---- permanent mineshaft entrance (walk in/out any time, no digging required) ----
-  let mx, mz;
-  do {
-    mx = (rand() - 0.5) * planet.size * 0.7;
-    mz = (rand() - 0.5) * planet.size * 0.7;
-  } while (Math.hypot(mx, mz) < 16);
-  const my = groundHeightFn(mx, mz);
+  // ---- permanent mineshaft entrance (walk in/out any time, no digging required); mounted on high ground ----
+  let mx = 0, mz = 0, my = -Infinity;
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const tx = (rand() - 0.5) * planet.size * 0.7;
+    const tz = (rand() - 0.5) * planet.size * 0.7;
+    if (Math.hypot(tx, tz) < 16) continue;
+    const th = groundHeightFn(tx, tz);
+    if (th > my) { mx = tx; mz = tz; my = th; }
+  }
   const mineEntrance = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
   const pitMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 1 });
@@ -435,17 +469,11 @@ function buildPlanetScene(planetId) {
   const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.0);
   const railR = new THREE.Mesh(railGeo, railMat); railR.position.set(0.5, 0.02, 1.0);
   mineEntrance.add(railL, railR);
-  const shaftBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.6, 1.4, 24, 8, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
-  );
-  shaftBeam.position.y = 12;
-  mineEntrance.add(shaftBeam);
   const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
   lantern.position.set(-2.1, 2.6, 0.5);
   mineEntrance.add(lantern);
   mineEntrance.position.set(mx, my, mz);
-  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mx, my, mz), shaftBeam, lantern };
+  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mx, my, mz), lantern };
   scene.add(mineEntrance);
 
   // ---- cave interior (built far away, teleport target); size differs per planet ----
@@ -460,7 +488,20 @@ function buildPlanetScene(planetId) {
   const caveWall = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 20, 1, true), new THREE.MeshStandardMaterial({ color: 0x2a2018, roughness: 1, side: THREE.BackSide }));
   caveWall.position.y = caveHeight / 2 - 0.5;
   caveGroup.add(caveWall);
-  const caveCeil = new THREE.Mesh(new THREE.CylinderGeometry(caveRadius, caveRadius, 1, 20), new THREE.MeshStandardMaterial({ color: 0x1a140f, roughness: 1, side: THREE.DoubleSide }));
+  // uneven ceiling: some spots hang lower, some rise higher, but it always stays flush with the wall rim
+  const ceilGeo = new THREE.CircleGeometry(caveRadius, 28);
+  const ceilPos = ceilGeo.attributes.position;
+  const ceilSeed = planetId * 311 + 17;
+  for (let i = 0; i < ceilPos.count; i++) {
+    const lx = ceilPos.getX(i), ly = ceilPos.getY(i);
+    const distFrac = Math.min(1, Math.hypot(lx, ly) / caveRadius);
+    const edgeFalloff = Math.max(0, 1 - distFrac);
+    const n = fbm(lx * 0.012, ly * 0.012, ceilSeed, 3);
+    ceilPos.setZ(i, (n - 0.5) * caveHeight * 0.55 * edgeFalloff);
+  }
+  ceilGeo.computeVertexNormals();
+  const caveCeil = new THREE.Mesh(ceilGeo, new THREE.MeshStandardMaterial({ color: 0x1a140f, roughness: 1, side: THREE.DoubleSide }));
+  caveCeil.rotation.x = -Math.PI / 2;
   caveCeil.position.y = caveHeight - 0.5;
   caveGroup.add(caveCeil);
 
@@ -751,7 +792,6 @@ function buildPlanetScene(planetId) {
       if (lostRocket && !lostRocket.userData.found) lostRocket.rotation.y = Math.sin(t * 0.3) * 0.05;
       exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       landmark.userData.glowParts.forEach((m) => { m.emissiveIntensity = 0.7 + Math.sin(t * 2.2) * 0.4; });
-      mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
       mineEntrance.userData.lantern.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.3;
     },
   };

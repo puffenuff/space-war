@@ -124,38 +124,51 @@ function buildCrawler(pos, repaired, dented) {
 function buildBuggy(pos, repaired, dented) {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: dented ? 0x556644 : 0x6f9a4a, roughness: 0.8, metalness: 0.2 });
-  const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.35, 1.3), bodyMat);
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.35, 1.5), bodyMat);
   chassis.position.y = 0.75;
   chassis.castShadow = true;
   g.add(chassis);
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.3, 1.1), bodyMat);
+  nose.position.set(1.15, 0.7, 0);
+  g.add(nose);
   const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 1.0), new THREE.MeshStandardMaterial({ color: dented ? 0x201810 : 0x3a2a1a, roughness: 0.9 }));
   seat.position.set(-0.1, 1.05, 0);
   g.add(seat);
-  // roll cage
+
+  // roll cage: 4 uprights joined by matching left/right top rails so it reads as one frame
   const cageMat = new THREE.MeshStandardMaterial({ color: dented ? 0x8a8a8a : 0xd7d7d7, metalness: 0.5, roughness: 0.4 });
   const cageGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6);
-  [[-0.6, 1.35, 0.55], [-0.6, 1.35, -0.55], [0.55, 1.1, 0.55], [0.55, 1.1, -0.55]].forEach(([x, y, z]) => {
+  [[-0.6, 1.35, 0.6], [-0.6, 1.35, -0.6], [0.5, 1.05, 0.6], [0.5, 1.05, -0.6]].forEach(([x, y, z]) => {
     const bar = new THREE.Mesh(cageGeo, cageMat);
     bar.position.set(x, y, z);
     bar.rotation.x = dented ? 0.15 : 0;
     g.add(bar);
   });
-  const topBar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 6), cageMat);
-  topBar.rotation.z = Math.PI / 2;
-  topBar.position.set(-0.6, 1.95, 0);
-  g.add(topBar);
+  const railGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 6);
+  const railL = new THREE.Mesh(railGeo, cageMat);
+  railL.rotation.x = Math.PI / 2;
+  railL.position.set(-0.6, 1.95, 0);
+  g.add(railL);
+  const railR = new THREE.Mesh(railGeo, cageMat);
+  railR.rotation.x = Math.PI / 2;
+  railR.position.set(0.5, 1.65, 0);
+  g.add(railR);
+  const crossBar = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.15, 6), cageMat);
+  crossBar.rotation.z = Math.PI / 2;
+  crossBar.position.set(-0.05, 1.8, 0.6);
+  g.add(crossBar);
 
   const wheels = [
-    makeWheel(0.62, 0.42, 0x191919), makeWheel(0.62, 0.42, 0x191919),
-    makeWheel(0.62, 0.42, 0x191919), makeWheel(0.62, 0.42, 0x191919),
+    makeWheel(0.55, 0.4, 0x191919), makeWheel(0.55, 0.4, 0x191919),
+    makeWheel(0.55, 0.4, 0x191919), makeWheel(0.55, 0.4, 0x191919),
   ];
-  [[-0.85, 0.62, 0.85], [0.85, 0.62, 0.85], [-0.85, 0.62, -0.85], [0.85, 0.62, -0.85]].forEach(([x, y, z], i) => {
+  [[-0.85, 0.55, 0.85], [0.85, 0.55, 0.85], [-0.85, 0.55, -0.85], [0.85, 0.55, -0.85]].forEach(([x, y, z], i) => {
     wheels[i].position.set(x, y, z);
     g.add(wheels[i]);
   });
 
   const damageGroup = dented ? addDamage(g, [
-    [0.7, 0.78, 0.66, 0.45, 0.22, 0.1], [-0.6, 0.78, -0.66, 0.4, 0.25, -0.12],
+    [0.7, 0.78, 0.7, 0.45, 0.22, 0.1], [-0.6, 0.78, -0.7, 0.4, 0.25, -0.12],
   ]) : null;
   return finishVehicle(g, pos, repaired, 'buggy', wheels, bodyMat, 0x7fb84f, damageGroup, wheels[3]);
 }
@@ -164,32 +177,42 @@ function buildBuggy(pos, repaired, dented) {
 function buildAlien(pos, repaired, dented) {
   const g = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: dented ? 0x3a2f50 : 0x4a3a70, roughness: 0.7, metalness: 0.5 });
-  const hull = new THREE.Mesh(new THREE.ConeGeometry(1.1, 2.6, 6), bodyMat);
-  hull.rotation.z = Math.PI / 2;
-  hull.rotation.y = Math.PI / 6;
-  hull.position.y = 1.0;
+  // low flat hull sized to match the wheel footprint, not a giant cone
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.5, 1.5), bodyMat);
+  hull.position.y = 0.75;
   hull.castShadow = true;
   g.add(hull);
+  // angled nose wedge at the front instead of the whole body being a cone
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.1, 6), bodyMat);
+  nose.rotation.z = -Math.PI / 2;
+  nose.position.set(1.25, 0.8, 0);
+  g.add(nose);
+  // bubble cabin
+  const cabinMat = new THREE.MeshStandardMaterial({ color: dented ? 0x201a30 : 0x1a1030, metalness: 0.6, roughness: 0.2, transparent: true, opacity: 0.85 });
+  const cabin = new THREE.Mesh(new THREE.SphereGeometry(0.5, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), cabinMat);
+  cabin.position.set(-0.2, 1.02, 0);
+  g.add(cabin);
+
   const stripeMat = new THREE.MeshStandardMaterial({ color: dented ? 0x552244 : 0xa63aff, emissive: dented ? 0x1a0a20 : 0x8a2aff, emissiveIntensity: dented ? 0.15 : 0.8 });
   const stripe = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.06), stripeMat);
-  stripe.position.set(0, 1.35, 0.7);
+  stripe.position.set(-0.15, 0.75, 0.77);
   g.add(stripe);
 
   const podMat = new THREE.MeshStandardMaterial({ color: 0x18141f, roughness: 0.6, metalness: 0.6 });
   const wheels = [];
-  [[-0.85, 0.55, 0.8], [0.85, 0.55, 0.8], [-0.85, 0.55, -0.8], [0.85, 0.55, -0.8]].forEach(([x, y, z]) => {
-    const pod = makeWheel(0.4, 0.55, 0x18141f);
+  [[-0.85, 0.5, 0.75], [0.85, 0.5, 0.75], [-0.85, 0.5, -0.75], [0.85, 0.5, -0.75]].forEach(([x, y, z]) => {
+    const pod = makeWheel(0.38, 0.5, 0x18141f);
     pod.material = podMat;
     pod.position.set(x, y, z);
     g.add(pod);
     wheels.push(pod);
   });
-  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), new THREE.MeshStandardMaterial({ color: 0x111, emissive: dented ? 0x220000 : 0xff2a2a, emissiveIntensity: dented ? 0.2 : 0.9 }));
-  eye.position.set(1.15, 1.15, 0);
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), new THREE.MeshStandardMaterial({ color: 0x111, emissive: dented ? 0x220000 : 0xff2a2a, emissiveIntensity: dented ? 0.2 : 0.9 }));
+  eye.position.set(1.75, 0.8, 0);
   g.add(eye);
 
   const damageGroup = dented ? addDamage(g, [
-    [0.2, 1.3, 0.5, 0.5, 0.25, 0.15], [-0.5, 0.9, -0.5, 0.4, 0.35, -0.1],
+    [0.2, 1.05, 0.76, 0.5, 0.25, 0.15], [-0.5, 0.6, -0.76, 0.4, 0.35, -0.1],
   ]) : null;
   return finishVehicle(g, pos, repaired, 'alien', wheels, bodyMat, 0x8a2aff, damageGroup, null);
 }
