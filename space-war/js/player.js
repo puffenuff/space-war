@@ -78,7 +78,7 @@ function createAstronaut(suitColor = 0xe8e8e8) {
   gun.position.set(0.16, -0.56, 0.06);
   armR.add(gun);
 
-  group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gun, flameMat: [flameL.material, flameR.material] };
+  group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gun, chestLight, visor, flameMat: [flameL.material, flameR.material] };
   return group;
 }
 
@@ -114,6 +114,19 @@ class Player {
     u.body.material.color.set(hex);
     u.armL.material.color.set(hex);
     u.armR.material.color.set(hex);
+    const isDefault = hex === 0xe8e8e8;
+    if (isDefault) {
+      u.chestLight.material.color.set(0xff5a5a);
+      u.chestLight.material.emissive.set(0x000000);
+      u.visor.material.emissive.set(0x0a3a55);
+      u.visor.material.emissiveIntensity = 0.4;
+    } else {
+      u.chestLight.material.color.set(hex);
+      u.chestLight.material.emissive.set(hex);
+      u.chestLight.material.emissiveIntensity = 0.8;
+      u.visor.material.emissive.set(hex);
+      u.visor.material.emissiveIntensity = 0.7;
+    }
   }
 
   addTo(scene) { scene.add(this.mesh); }

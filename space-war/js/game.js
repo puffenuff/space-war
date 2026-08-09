@@ -311,6 +311,7 @@ function findNearestInteractable() {
       if (!b.vehicle.userData.repaired || !drivingVehicle) list.push(b.vehicle);
       b.digSites.forEach((d) => { if (!d.userData.dug) list.push(d); });
       if (b.lostRocket) list.push(b.lostRocket);
+      list.push(b.mineEntrance);
     } else {
       const exitWorld = new THREE.Object3D();
       exitWorld.position.set(b.caveOrigin.x + b.caveExit.position.x, b.caveOrigin.y, b.caveOrigin.z + b.caveExit.position.z);
@@ -351,7 +352,8 @@ function promptLabelFor(obj) {
     if (d.type === 'vehicle') return d.repaired ? 'Enter Rover' : `Hold to Repair (needs 2 Tools, have ${state.inventory.tools})`;
     if (d.type === 'digSite') return 'Hold to Dig';
     if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
-    if (d.type === 'caveExit') return 'Exit Cave';
+    if (d.type === 'mineEntrance') return 'Enter Mineshaft';
+    if (d.type === 'caveExit') return 'Exit Mineshaft';
   }
   return 'Interact';
 }
@@ -369,6 +371,7 @@ function handleInteractTap(obj) {
     if (d.type === 'returnBeacon') { enterBase(); return; }
     if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
     if (d.type === 'lostRocket') { exploreLostRocket(); return; }
+    if (d.type === 'mineEntrance') { enterCave(obj); return; }
     if (d.type === 'caveExit') { exitCave(); return; }
   }
 }
@@ -586,10 +589,6 @@ function completeDig(site) {
   if (kind === 'mission') {
     const def = completeMissionByType(currentPlanetId, 'dig', missionToast);
     if (!def) { state.coins += 20; ui.showToast('+20 Coins'); sfx.coin(); }
-  } else if (kind === 'cave') {
-    ui.showToast('You dug into a cave!');
-    sfx.dig();
-    enterCave(site);
   } else {
     const c = 10 + Math.floor(Math.random() * 15);
     state.coins += c; state.inventory.scrap += 1;

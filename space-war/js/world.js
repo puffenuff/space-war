@@ -200,7 +200,7 @@ function buildPlanetScene(planetId) {
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
   const rockMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
-  const rockCount = Math.round(60 * (planet.size / 300));
+  const rockCount = Math.round(85 * (planet.size / 300));
   for (let i = 0; i < rockCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.9;
     const z = (rand() - 0.5) * planet.size * 0.9;
@@ -212,6 +212,28 @@ function buildPlanetScene(planetId) {
     rock.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
     rock.castShadow = true; rock.receiveShadow = true;
     scene.add(rock);
+  }
+
+  // ---- scattered surface mineral crystal clusters, color-matched to this planet's outfit accent ----
+  const surfaceCrystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.5, metalness: 0.3, roughness: 0.3 });
+  const surfaceCrystalGeo = new THREE.ConeGeometry(0.35, 1, 5);
+  const surfaceCrystalCount = Math.round(18 * (planet.size / 300));
+  for (let i = 0; i < surfaceCrystalCount; i++) {
+    const x = (rand() - 0.5) * planet.size * 0.85;
+    const z = (rand() - 0.5) * planet.size * 0.85;
+    if (Math.hypot(x, z) < 20) continue;
+    const cluster = new THREE.Group();
+    const shardCount = 3 + Math.floor(rand() * 3);
+    for (let j = 0; j < shardCount; j++) {
+      const shard = new THREE.Mesh(surfaceCrystalGeo, surfaceCrystalMat);
+      const h = 0.6 + rand() * 1.3;
+      shard.scale.set(0.6 + rand() * 0.6, h, 0.6 + rand() * 0.6);
+      shard.position.set((rand() - 0.5) * 1.1, h / 2, (rand() - 0.5) * 1.1);
+      shard.rotation.z = (rand() - 0.5) * 0.3;
+      cluster.add(shard);
+    }
+    cluster.position.set(x, groundHeightFn(x, z), z);
+    scene.add(cluster);
   }
 
   // ---- return beacon near spawn ----
@@ -246,7 +268,7 @@ function buildPlanetScene(planetId) {
   const coinPickups = [];
   const coinGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14);
   const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd35e, metalness: 0.8, roughness: 0.25, emissive: 0x553d00, emissiveIntensity: 0.3 });
-  const coinCount = Math.round(10 * (planet.size / 300));
+  const coinCount = Math.round(15 * (planet.size / 300));
   for (let i = 0; i < coinCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.8;
     const z = (rand() - 0.5) * planet.size * 0.8;
@@ -277,10 +299,10 @@ function buildPlanetScene(planetId) {
     partPickup = group;
   }
 
-  // ---- dig sites ----
+  // ---- dig sites (mission reward + loot only; the cave now has its own permanent entrance below) ----
   const digSites = [];
   const digCount = planet.dugSites;
-  const digKinds = ['mission', 'cave', 'loot', 'loot'];
+  const digKinds = ['mission', 'loot', 'loot'];
   for (let i = 0; i < digCount; i++) {
     let x, z;
     do {
@@ -288,29 +310,55 @@ function buildPlanetScene(planetId) {
       z = (rand() - 0.5) * planet.size * 0.7;
     } while (Math.hypot(x, z) < 16);
     const kind = digKinds[i % digKinds.length];
-    const isCave = kind === 'cave';
     const mound = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 }));
     mound.position.set(x, groundHeightFn(x, z), z);
     mound.scale.y = 0.55;
-    const sparkle = makeSparkle(isCave ? 0x6fd7ff : 0xfff2a0);
+    const sparkle = makeSparkle(0xfff2a0);
     sparkle.position.set(x, groundHeightFn(x, z) + 0.5, z);
     scene.add(sparkle);
 
-    // cave entrances get a tall glowing beacon so they're spottable from across the map
-    let beam = null;
-    if (isCave) {
-      beam = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.15, 0.45, 30, 8, 1, true),
-        new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false })
-      );
-      beam.position.set(x, groundHeightFn(x, z) + 15, z);
-      scene.add(beam);
-    }
-
-    mound.userData = { type: 'digSite', dug: false, kind, id: `dig${planetId}_${i}`, sparkle, beam };
+    mound.userData = { type: 'digSite', dug: false, kind, id: `dig${planetId}_${i}`, sparkle, beam: null };
     scene.add(mound);
     digSites.push(mound);
   }
+
+  // ---- permanent mineshaft entrance (walk in/out any time, no digging required) ----
+  let mx, mz;
+  do {
+    mx = (rand() - 0.5) * planet.size * 0.7;
+    mz = (rand() - 0.5) * planet.size * 0.7;
+  } while (Math.hypot(mx, mz) < 16);
+  const my = groundHeightFn(mx, mz);
+  const mineEntrance = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+  const pitMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 1 });
+  const pit = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 1.8, 1.4, 12), pitMat);
+  pit.position.y = -0.7;
+  mineEntrance.add(pit);
+  const postGeo = new THREE.CylinderGeometry(0.22, 0.26, 3.2, 8);
+  const postL = new THREE.Mesh(postGeo, woodMat); postL.position.set(-2.1, 1.5, 0.5);
+  const postR = new THREE.Mesh(postGeo, woodMat); postR.position.set(2.1, 1.5, 0.5);
+  mineEntrance.add(postL, postR);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.35, 0.4), woodMat);
+  beam.position.set(0, 3.0, 0.5);
+  mineEntrance.add(beam);
+  const railGeo = new THREE.BoxGeometry(0.1, 0.08, 3.2);
+  const railMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, metalness: 0.6, roughness: 0.5 });
+  const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.0);
+  const railR = new THREE.Mesh(railGeo, railMat); railR.position.set(0.5, 0.02, 1.0);
+  mineEntrance.add(railL, railR);
+  const shaftBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.6, 1.4, 24, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
+  );
+  shaftBeam.position.y = 12;
+  mineEntrance.add(shaftBeam);
+  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
+  lantern.position.set(-2.1, 2.6, 0.5);
+  mineEntrance.add(lantern);
+  mineEntrance.position.set(mx, my, mz);
+  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mx, my, mz), shaftBeam, lantern };
+  scene.add(mineEntrance);
 
   // ---- cave interior (built far away, teleport target); size differs per planet ----
   const caveRadius = planet.caveRadius || 75;
@@ -343,7 +391,7 @@ function buildPlanetScene(planetId) {
   caveGroup.add(caveLightD);
 
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
-  const glowOrbCount = Math.min(70, Math.round(caveRadius * 0.42));
+  const glowOrbCount = Math.min(95, Math.round(caveRadius * 0.42));
   for (let i = 0; i < glowOrbCount; i++) {
     const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: 0x6fd7ff }));
     const a = (i / glowOrbCount) * Math.PI * 2;
@@ -356,7 +404,7 @@ function buildPlanetScene(planetId) {
   const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
   const stalagMat = new THREE.MeshStandardMaterial({ color: 0x24242c, roughness: 1 });
   const caveRand = seededRand(planetId * 47 + 501);
-  const stalagCount = Math.min(95, Math.round(caveRadius * 0.6));
+  const stalagCount = Math.min(130, Math.round(caveRadius * 0.6));
   for (let i = 0; i < stalagCount; i++) {
     const a = caveRand() * Math.PI * 2;
     const r = 6 + caveRand() * (caveRadius - 10);
@@ -371,7 +419,7 @@ function buildPlanetScene(planetId) {
   // glowing mineral crystal clusters, color-matched to this planet's outfit accent
   const crystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.3 });
   const crystalGeo = new THREE.ConeGeometry(0.4, 1, 5);
-  const crystalClusterCount = Math.min(24, Math.round(caveRadius / 10));
+  const crystalClusterCount = Math.min(32, Math.round(caveRadius / 10));
   for (let i = 0; i < crystalClusterCount; i++) {
     const a = caveRand() * Math.PI * 2;
     const r = 8 + caveRand() * (caveRadius - 14);
@@ -419,7 +467,7 @@ function buildPlanetScene(planetId) {
   // rock columns that span floor to ceiling
   const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e1e26, roughness: 1 });
   const pillarRand = seededRand(planetId * 71 + 909);
-  const pillarCount = Math.min(26, Math.max(4, Math.round(caveRadius / 12)));
+  const pillarCount = Math.min(34, Math.max(4, Math.round(caveRadius / 12)));
   for (let i = 0; i < pillarCount; i++) {
     const a = pillarRand() * Math.PI * 2;
     const r = 12 + pillarRand() * (caveRadius - 20);
@@ -447,19 +495,52 @@ function buildPlanetScene(planetId) {
   // special suit pickup, unique per planet, permanently reskins the astronaut
   const outfitColor = planet.outfitColor || 0xffffff;
   const outfit = new THREE.Group();
-  const outfitMat = new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.6, metalness: 0.4, roughness: 0.3 });
+  const outfitMat = new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.55, metalness: 0.45, roughness: 0.3 });
+  const outfitTrimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: outfitColor, emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.2 });
+
   const outfitTorso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.35), outfitMat);
   outfitTorso.position.y = 0.55;
   outfit.add(outfitTorso);
-  const outfitHead = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), outfitMat);
+  const outfitChestLight = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.05), outfitTrimMat);
+  outfitChestLight.position.set(0, 0.62, 0.19);
+  outfit.add(outfitChestLight);
+
+  // shoulder pauldrons
+  const padGeo = new THREE.BoxGeometry(0.24, 0.16, 0.3);
+  const padL = new THREE.Mesh(padGeo, outfitTrimMat); padL.position.set(-0.32, 0.86, 0);
+  const padR = new THREE.Mesh(padGeo, outfitTrimMat); padR.position.set(0.32, 0.86, 0);
+  outfit.add(padL, padR);
+
+  // small arms
+  const outfitArmGeo = new THREE.BoxGeometry(0.15, 0.42, 0.17);
+  const outfitArmL = new THREE.Mesh(outfitArmGeo, outfitMat); outfitArmL.position.set(-0.34, 0.55, 0); outfitArmL.rotation.z = 0.18;
+  const outfitArmR = new THREE.Mesh(outfitArmGeo, outfitMat); outfitArmR.position.set(0.34, 0.55, 0); outfitArmR.rotation.z = -0.18;
+  outfit.add(outfitArmL, outfitArmR);
+
+  // helmet with glowing visor
+  const outfitHead = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 }));
   outfitHead.position.y = 1.05;
   outfit.add(outfitHead);
+  const outfitVisor = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.9, metalness: 0.6, roughness: 0.15 }));
+  outfitVisor.position.set(0, 1.05, 0.12);
+  outfitVisor.rotation.x = -0.15;
+  outfit.add(outfitVisor);
+  const outfitAntenna = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.18, 5), outfitTrimMat);
+  outfitAntenna.position.set(0, 1.28, 0);
+  outfit.add(outfitAntenna);
+
+  // twin display rings, like a trophy pedestal
   const outfitRing = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 8, 20), new THREE.MeshBasicMaterial({ color: outfitColor }));
   outfitRing.rotation.x = Math.PI / 2;
   outfitRing.position.y = 0.05;
   outfit.add(outfitRing);
+  const outfitRing2 = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 20), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  outfitRing2.rotation.x = Math.PI / 2;
+  outfitRing2.position.y = 1.4;
+  outfit.add(outfitRing2);
+
   outfit.position.set(-caveRadius * 0.5, 0.1, caveRadius * 0.35);
-  outfit.userData = { type: 'caveOutfit', collected: false, suitColor: outfitColor, worldPos: caveOrigin.clone().add(outfit.position) };
+  outfit.userData = { type: 'caveOutfit', collected: false, suitColor: outfitColor, worldPos: caveOrigin.clone().add(outfit.position), ring2: outfitRing2 };
   caveGroup.add(outfit);
 
   // cave enemy spawn points (positions only; game.js instantiates the actual enemies)
@@ -471,15 +552,24 @@ function buildPlanetScene(planetId) {
     caveEnemySpawns.push({ x: caveOrigin.x + Math.cos(a) * r, y: caveOrigin.y, z: caveOrigin.z + Math.sin(a) * r });
   }
 
-  // cave exit beacon
+  // cave exit: bottom of a mineshaft, with a ladder climbing up out of view
   const caveExit = new THREE.Group();
-  const exitPole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: 0x99a3b0 }));
-  exitPole.position.y = 1.5;
-  const exitLight = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 10), new THREE.MeshStandardMaterial({ color: 0xff9c4a, emissive: 0xcc6a20, emissiveIntensity: 0.8 }));
-  exitLight.position.y = 3.1;
-  caveExit.add(exitPole, exitLight);
+  const exitWoodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+  const railGeoExit = new THREE.CylinderGeometry(0.05, 0.05, 8, 6);
+  const ladderRailL = new THREE.Mesh(railGeoExit, exitWoodMat); ladderRailL.position.set(-0.5, 4, 0);
+  const ladderRailR = new THREE.Mesh(railGeoExit, exitWoodMat); ladderRailR.position.set(0.5, 4, 0);
+  caveExit.add(ladderRailL, ladderRailR);
+  for (let i = 0; i < 9; i++) {
+    const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), exitWoodMat);
+    rung.rotation.z = Math.PI / 2;
+    rung.position.set(0, 0.6 + i * 0.9, 0);
+    caveExit.add(rung);
+  }
+  const exitLight = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
+  exitLight.position.set(0.9, 1.6, 0);
+  caveExit.add(exitLight);
   caveExit.position.set(0, 0, caveRadius * 0.4);
-  caveExit.userData = { type: 'caveExit', label: 'Exit Cave', worldPos: caveOrigin.clone().add(caveExit.position) };
+  caveExit.userData = { type: 'caveExit', label: 'Exit Mineshaft', worldPos: caveOrigin.clone().add(caveExit.position) };
   caveGroup.add(caveExit);
   scene.add(caveGroup);
 
@@ -518,7 +608,7 @@ function buildPlanetScene(planetId) {
     scene, groundHeightFn,
     planet, ambient,
     spawnPoint: { x: 0, z: 6 },
-    beacon, scrapPickups, coinPickups, partPickup, digSites,
+    beacon, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
     caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
     caveScrapPickups, caveCoinPickups,
     wreckPos: [planet.wreckPos[0], wreckY, planet.wreckPos[2]],
@@ -532,7 +622,11 @@ function buildPlanetScene(planetId) {
       caveScrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
       caveCoinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
-      if (outfit && !outfit.userData.collected) { outfit.rotation.y = t * 0.8; outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15; }
+      if (outfit && !outfit.userData.collected) {
+        outfit.rotation.y = t * 0.8;
+        outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15;
+        outfit.userData.ring2.rotation.z = -t * 1.6;
+      }
       digSites.forEach((d) => {
         if (!d.userData.dug) {
           d.userData.sparkle.rotation.y = t * 1.5;
@@ -546,6 +640,8 @@ function buildPlanetScene(planetId) {
       if (lostRocket && !lostRocket.userData.found) lostRocket.rotation.y = Math.sin(t * 0.3) * 0.05;
       exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       landmark.userData.glowParts.forEach((m) => { m.emissiveIntensity = 0.7 + Math.sin(t * 2.2) * 0.4; });
+      mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
+      mineEntrance.userData.lantern.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.3;
     },
   };
 }
