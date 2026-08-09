@@ -145,6 +145,94 @@ function buildLandmark(planet, groundHeightFn, rand) {
       glowParts.push(rod.material);
       break;
     }
+    case 'lunar': { // crashed satellite, half-buried
+      const hullMat = new THREE.MeshStandardMaterial({ color: 0xd8d8dc, metalness: 0.6, roughness: 0.4 });
+      const hull = new THREE.Mesh(new THREE.CylinderGeometry(2, 2, 8, 10), hullMat);
+      hull.rotation.z = Math.PI / 2.3;
+      hull.position.y = 2.5;
+      group.add(hull);
+      const panelMat = new THREE.MeshStandardMaterial({ color: 0x2a3a6a, metalness: 0.5, roughness: 0.3, emissive: 0x1a2a5a, emissiveIntensity: 0.4 });
+      const panelL = new THREE.Mesh(new THREE.BoxGeometry(6, 0.1, 2.4), panelMat); panelL.position.set(-4, 3.6, 0); panelL.rotation.z = 0.35;
+      const panelR = new THREE.Mesh(new THREE.BoxGeometry(6, 0.1, 2.4), panelMat); panelR.position.set(4, 5.6, 0); panelR.rotation.z = -0.2;
+      group.add(panelL, panelR);
+      const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 1.3, 0.6, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0xc0c0c8, metalness: 0.5, roughness: 0.5, side: THREE.DoubleSide }));
+      dish.position.set(-2, 6.2, 0);
+      dish.rotation.z = 0.5;
+      group.add(dish);
+      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshStandardMaterial({ color: 0xff3030, emissive: 0xff2020, emissiveIntensity: 1 }));
+      beacon.position.set(-2, 6.7, 0);
+      group.add(beacon);
+      glowParts.push(beacon.material);
+      break;
+    }
+    case 'reef': { // giant coral spire cluster
+      const coralMatA = new THREE.MeshStandardMaterial({ color: 0xff6fa0, emissive: 0xaa2f60, emissiveIntensity: 0.4, roughness: 0.6 });
+      const coralMatB = new THREE.MeshStandardMaterial({ color: 0x2ab5a0, emissive: 0x0a5a50, emissiveIntensity: 0.4, roughness: 0.6 });
+      for (let i = 0; i < 8; i++) {
+        const h = 8 + rand() * 18;
+        const spire = new THREE.Mesh(new THREE.ConeGeometry(1 + rand() * 1.4, h, 6), i % 2 === 0 ? coralMatA : coralMatB);
+        const a = (i / 8) * Math.PI * 2, r = rand() * 8;
+        spire.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+        spire.rotation.z = (rand() - 0.5) * 0.3;
+        group.add(spire);
+      }
+      glowParts.push(coralMatA, coralMatB);
+      break;
+    }
+    case 'ashlands': { // ruined skeleton tower
+      const beamMat = new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 1, metalness: 0.2 });
+      for (let i = 0; i < 5; i++) {
+        const beamH = 14 - i * 1.6;
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, beamH, 0.6), beamMat);
+        const a = (i / 5) * Math.PI * 2;
+        beam.position.set(Math.cos(a) * 3.5, beamH / 2, Math.sin(a) * 3.5);
+        beam.rotation.z = (rand() - 0.5) * 0.25;
+        group.add(beam);
+      }
+      for (let i = 0; i < 3; i++) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(3.5, 0.15, 6, 12), beamMat);
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = 3 + i * 4;
+        group.add(ring);
+      }
+      const emberGlow = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshStandardMaterial({ color: 0xff6a2e, emissive: 0xff4a1a, emissiveIntensity: 1 }));
+      emberGlow.position.set(0, 1, 0);
+      group.add(emberGlow);
+      glowParts.push(emberGlow.material);
+      break;
+    }
+    case 'crimson': { // jagged dark crimson spike formation
+      const spikeMat = new THREE.MeshStandardMaterial({ color: 0x4a0f0f, emissive: 0xcc2222, emissiveIntensity: 0.5, roughness: 0.5, metalness: 0.3 });
+      for (let i = 0; i < 6; i++) {
+        const h = 14 + rand() * 20;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(1 + rand(), h, 4), spikeMat);
+        const a = (i / 6) * Math.PI * 2, r = rand() * 6;
+        spike.position.set(Math.cos(a) * r, h / 2, Math.sin(a) * r);
+        spike.rotation.y = rand() * Math.PI;
+        group.add(spike);
+      }
+      glowParts.push(spikeMat);
+      break;
+    }
+    case 'toxic': { // leaking containment silo
+      const siloMat = new THREE.MeshStandardMaterial({ color: 0x4a5a4a, metalness: 0.5, roughness: 0.5 });
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 18, 12), siloMat);
+      silo.position.y = 9;
+      group.add(silo);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(4, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), siloMat);
+      cap.position.y = 18;
+      group.add(cap);
+      const oozeMat = new THREE.MeshStandardMaterial({ color: 0x6aff4a, emissive: 0x4aff2a, emissiveIntensity: 0.8, transparent: true, opacity: 0.85 });
+      const ooze = new THREE.Mesh(new THREE.CylinderGeometry(4.3, 5.5, 5, 12, 1, true), oozeMat);
+      ooze.position.y = 2.5;
+      group.add(ooze);
+      const pool = new THREE.Mesh(new THREE.CircleGeometry(7, 16), oozeMat);
+      pool.rotation.x = -Math.PI / 2;
+      pool.position.y = 0.02;
+      group.add(pool);
+      glowParts.push(oozeMat);
+      break;
+    }
     case 'alien':
     default: { // ancient monolith ring
       const monMat = new THREE.MeshStandardMaterial({ color: 0x2a1a44, emissive: 0x6a2aff, emissiveIntensity: 0.45, roughness: 0.6 });

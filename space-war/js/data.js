@@ -1,6 +1,6 @@
 // ===================== STATIC GAME DATA =====================
 
-const PLANET_COUNT = 9;
+const PLANET_COUNT = 14;
 const PLANET_ID_LIST = Array.from({ length: PLANET_COUNT }, (_, i) => i + 1);
 
 const PLANETS = {
@@ -61,11 +61,46 @@ const PLANETS = {
     partSpots: { engine: [135, 0, 75] }, outfitColor: 0x4a7ab8, caveRadius: 405,
   },
   9: {
+    name: 'Lunaris', theme: 'lunar',
+    ground: 0x9a9aa2, ground2: 0x55555c, sky: 0x141425, fog: 0x33334a,
+    size: 600, hills: 14, craters: 9,
+    enemyCount: 16, dugSites: 6, wreckPos: [110, 0, -85], vehicleType: 'crawler',
+    partSpots: { fins: [-130, 0, 100] }, outfitColor: 0xc0c0d0, caveRadius: 415,
+  },
+  10: {
+    name: 'Coralis', theme: 'reef',
+    ground: 0xff6fa0, ground2: 0x2ab5a0, sky: 0x8fe0ff, fog: 0x5fc9d8,
+    size: 600, hills: 8, craters: 2,
+    enemyCount: 17, dugSites: 6, wreckPos: [-95, 0, -120], vehicleType: 'buggy',
+    partSpots: { engine: [140, 0, -50] }, outfitColor: 0xff6fa0, caveRadius: 435,
+  },
+  11: {
+    name: 'Cindergate', theme: 'ashlands',
+    ground: 0x6a6258, ground2: 0x3a352e, sky: 0x8a7d6a, fog: 0x5a5248,
+    size: 600, hills: 15, craters: 8,
+    enemyCount: 18, dugSites: 6, wreckPos: [100, 0, 120], vehicleType: 'rover',
+    partSpots: { fuelTank: [-145, 0, -65] }, outfitColor: 0x8a7a6a, caveRadius: 455,
+  },
+  12: {
+    name: 'Bloodmere', theme: 'crimson',
+    ground: 0x8a1f1f, ground2: 0x4a0f0f, sky: 0xcc4a3a, fog: 0x992e2e,
+    size: 600, hills: 13, craters: 5,
+    enemyCount: 19, dugSites: 6, wreckPos: [-120, 0, 100], vehicleType: 'alien',
+    partSpots: { noseCone: [150, 0, 70] }, outfitColor: 0xcc2222, caveRadius: 475,
+  },
+  13: {
+    name: 'Toxara', theme: 'toxic',
+    ground: 0x6aff4a, ground2: 0x2a5a1a, sky: 0x9aff6a, fog: 0x4a8a2a,
+    size: 600, hills: 10, craters: 4,
+    enemyCount: 20, dugSites: 6, wreckPos: [130, 0, -110], vehicleType: 'crawler',
+    partSpots: { engine: [-140, 0, 110] }, outfitColor: 0x8aff4a, caveRadius: 495,
+  },
+  14: {
     name: 'Xenar Prime', theme: 'alien',
     ground: 0x5b3a7a, ground2: 0x3c2456, sky: 0x2a1a44, fog: 0x4a2f6e,
     size: 600, hills: 17, craters: 7,
-    enemyCount: 20, dugSites: 6, wreckPos: [105, 0, 105], vehicleType: 'alien',
-    partSpots: { noseCone: [-135, 0, -60] }, outfitColor: 0xd4af37, caveRadius: 480,
+    enemyCount: 24, dugSites: 6, wreckPos: [105, 0, 105], vehicleType: 'alien',
+    partSpots: { noseCone: [-135, 0, -60] }, outfitColor: 0xd4af37, caveRadius: 550,
     lostRocketPos: [0, 0, -260],
   },
 };
@@ -129,12 +164,47 @@ const MISSIONS = {
     { id: 'p8m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the lightning-scarred ridge.', type: 'partpickup', part: 'engine', reward: { coins: 50 } },
   ],
   9: [
-    { id: 'p9m1', name: 'Xenar Defense', desc: 'Defeat 17 alien raiders.', type: 'kill', target: 17, reward: { coins: 120 } },
-    { id: 'p9m2', name: 'Crystal Scrap', desc: 'Collect 18 scrap crystals.', type: 'collect', item: 'scrap', target: 18, reward: { coins: 70, tools: 3 } },
-    { id: 'p9m3', name: 'Alien Crawler Recovery', desc: 'Find and repair the strange rover.', type: 'repair', reward: { coins: 65, rocketPart: 'engine' } },
-    { id: 'p9m4', name: 'Dig for the Fuel Cell', desc: 'Search dig sites for a Fuel Tank part.', type: 'dig', reward: { rocketPart: 'fuelTank' } },
-    { id: 'p9m5', name: 'Cone Salvage', desc: 'Retrieve the Nose Cone from the alien ruins.', type: 'partpickup', part: 'noseCone', reward: { coins: 55 } },
-    { id: 'p9m6', name: 'The Lost Rocket', desc: 'Find the ancient lost rocket ship deep on Xenar Prime.', type: 'lostrocket', reward: { coins: 200 } },
+    { id: 'p9m1', name: 'Lunar Raiders', desc: 'Defeat 15 raiders roaming the lunar craters.', type: 'kill', target: 15, reward: { coins: 115 } },
+    { id: 'p9m2', name: 'Regolith Scrap', desc: 'Collect 16 scrap from the crater fields.', type: 'collect', item: 'scrap', target: 16, reward: { coins: 65, tools: 3 } },
+    { id: 'p9m3', name: 'Moon Crawler Recovery', desc: 'Find and repair the dust-buried rover.', type: 'repair', reward: { coins: 60, rocketPart: 'engine' } },
+    { id: 'p9m4', name: 'Dig for the Nose Cone', desc: 'Search dig sites in the craters for a Nose Cone.', type: 'dig', reward: { rocketPart: 'noseCone' } },
+    { id: 'p9m5', name: 'Fin Salvage', desc: 'Retrieve the Fins from a crashed lander.', type: 'partpickup', part: 'fins', reward: { coins: 55 } },
+  ],
+  10: [
+    { id: 'p10m1', name: 'Reef Raiders', desc: 'Defeat 16 raiders lurking among the coral spires.', type: 'kill', target: 16, reward: { coins: 125 } },
+    { id: 'p10m2', name: 'Coral Scrap', desc: 'Collect 17 scrap from the reef floor.', type: 'collect', item: 'scrap', target: 17, reward: { coins: 70, tools: 3 } },
+    { id: 'p10m3', name: 'Tidal Crawler Recovery', desc: 'Find and repair the reef-battered rover.', type: 'repair', reward: { coins: 65, rocketPart: 'fuelTank' } },
+    { id: 'p10m4', name: 'Dig for the Fins', desc: 'Search dig sites along the reef for Fins.', type: 'dig', reward: { rocketPart: 'fins' } },
+    { id: 'p10m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the sunken wreck.', type: 'partpickup', part: 'engine', reward: { coins: 60 } },
+  ],
+  11: [
+    { id: 'p11m1', name: 'Ash Raiders', desc: 'Defeat 17 raiders in the Cindergate ruins.', type: 'kill', target: 17, reward: { coins: 135 } },
+    { id: 'p11m2', name: 'Cinder Scrap', desc: 'Collect 18 scrap from the ash drifts.', type: 'collect', item: 'scrap', target: 18, reward: { coins: 75, tools: 4 } },
+    { id: 'p11m3', name: 'Wasteland Crawler Recovery', desc: 'Find and repair the ash-choked rover.', type: 'repair', reward: { coins: 70, rocketPart: 'noseCone' } },
+    { id: 'p11m4', name: 'Dig for the Fuel Tank', desc: 'Search dig sites in the ashlands for a Fuel Tank.', type: 'dig', reward: { rocketPart: 'fuelTank' } },
+    { id: 'p11m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the buried ruins.', type: 'partpickup', part: 'engine', reward: { coins: 65 } },
+  ],
+  12: [
+    { id: 'p12m1', name: 'Crimson Raiders', desc: 'Defeat 18 raiders roaming Bloodmere.', type: 'kill', target: 18, reward: { coins: 145 } },
+    { id: 'p12m2', name: 'Bloodstone Scrap', desc: 'Collect 19 scrap from the crimson sands.', type: 'collect', item: 'scrap', target: 19, reward: { coins: 80, tools: 4 } },
+    { id: 'p12m3', name: 'Sand Crawler Recovery', desc: 'Find and repair the sand-buried rover.', type: 'repair', reward: { coins: 75, rocketPart: 'fins' } },
+    { id: 'p12m4', name: 'Dig for the Fuel Tank', desc: 'Search dig sites in the red dunes for a Fuel Tank.', type: 'dig', reward: { rocketPart: 'fuelTank' } },
+    { id: 'p12m5', name: 'Nose Cone Salvage', desc: 'Retrieve the Nose Cone from the sunken ruins.', type: 'partpickup', part: 'noseCone', reward: { coins: 70 } },
+  ],
+  13: [
+    { id: 'p13m1', name: 'Toxic Raiders', desc: 'Defeat 19 mutated raiders on Toxara.', type: 'kill', target: 19, reward: { coins: 155 } },
+    { id: 'p13m2', name: 'Irradiated Scrap', desc: 'Collect 20 scrap from the glowing marshes.', type: 'collect', item: 'scrap', target: 20, reward: { coins: 85, tools: 4 } },
+    { id: 'p13m3', name: 'Mutant Crawler Recovery', desc: 'Find and repair the corroded rover.', type: 'repair', reward: { coins: 80, rocketPart: 'fuelTank' } },
+    { id: 'p13m4', name: 'Dig for the Nose Cone', desc: 'Search dig sites in the toxic flats for a Nose Cone.', type: 'dig', reward: { rocketPart: 'noseCone' } },
+    { id: 'p13m5', name: 'Fin Salvage', desc: 'Retrieve the Fins from the irradiated wreck.', type: 'partpickup', part: 'fins', reward: { coins: 75 } },
+  ],
+  14: [
+    { id: 'p14m1', name: 'Xenar Defense', desc: 'Defeat 23 alien raiders.', type: 'kill', target: 23, reward: { coins: 170 } },
+    { id: 'p14m2', name: 'Crystal Scrap', desc: 'Collect 24 scrap crystals.', type: 'collect', item: 'scrap', target: 24, reward: { coins: 95, tools: 5 } },
+    { id: 'p14m3', name: 'Alien Crawler Recovery', desc: 'Find and repair the strange rover.', type: 'repair', reward: { coins: 90, rocketPart: 'engine' } },
+    { id: 'p14m4', name: 'Dig for the Fuel Cell', desc: 'Search dig sites for a Fuel Tank part.', type: 'dig', reward: { rocketPart: 'fuelTank' } },
+    { id: 'p14m5', name: 'Cone Salvage', desc: 'Retrieve the Nose Cone from the alien ruins.', type: 'partpickup', part: 'noseCone', reward: { coins: 80 } },
+    { id: 'p14m6', name: 'The Lost Rocket', desc: 'Find the ancient lost rocket ship deep on Xenar Prime.', type: 'lostrocket', reward: { coins: 250 } },
   ],
 };
 
