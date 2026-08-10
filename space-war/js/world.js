@@ -543,6 +543,7 @@ function buildPlanetScene(planetId) {
   const caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
   const caveGroup = new THREE.Group();
   caveGroup.position.copy(caveOrigin);
+  const caveRand = seededRand(planetId * 47 + 501);
   // uneven rocky floor with subtle noise bumps and mineral color streaking
   const floorGeo = new THREE.CircleGeometry(caveRadius, 48);
   const floorPos = floorGeo.attributes.position;
@@ -664,7 +665,6 @@ function buildPlanetScene(planetId) {
   // scattered stalagmite formations rising from the floor (warm limestone tone)
   const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
   const stalagMat = new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 1 });
-  const caveRand = seededRand(planetId * 47 + 501);
   const stalagCount = Math.min(130, Math.round(caveRadius * 0.6));
   for (let i = 0; i < stalagCount; i++) {
     const a = caveRand() * Math.PI * 2;
