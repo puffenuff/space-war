@@ -467,20 +467,34 @@ function buildPlanetScene(planetId) {
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
   const mountainMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
 
-  // rock mass the shaft appears bored into, stacked behind and above the doorway
-  const mountainGeo = new THREE.IcosahedronGeometry(1, 0);
+  // one big, tall mountain peak (not scattered boulders) that the shaft is bored into
   const mountainRand = seededRand(planetId * 613 + 29);
-  for (let i = 0; i < 7; i++) {
-    const boulder = new THREE.Mesh(mountainGeo, mountainMat);
-    const s = 3 + mountainRand() * 5;
+  const peak = new THREE.Mesh(new THREE.ConeGeometry(17, 50, 9), mountainMat);
+  peak.position.set(1, 24, -9);
+  peak.rotation.y = mountainRand() * Math.PI;
+  peak.castShadow = true; peak.receiveShadow = true;
+  mineEntrance.add(peak);
+  // smaller shoulder peaks so it reads as a mountain, not one perfect cone
+  [[-9, 15, -6, 9, 30], [8, 12, -8, 7, 24], [-2, 9, -4, 6, 20]].forEach(([px, py, pz, r, h]) => {
+    const shoulder = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), mountainMat);
+    shoulder.position.set(px, py, pz);
+    shoulder.rotation.y = mountainRand() * Math.PI;
+    shoulder.castShadow = true; shoulder.receiveShadow = true;
+    mineEntrance.add(shoulder);
+  });
+  // boulders at the base where the mountain meets the ground
+  const boulderGeo = new THREE.IcosahedronGeometry(1, 0);
+  for (let i = 0; i < 5; i++) {
+    const boulder = new THREE.Mesh(boulderGeo, mountainMat);
+    const s = 1.5 + mountainRand() * 2.5;
     boulder.scale.set(s, s * (0.7 + mountainRand() * 0.5), s);
-    boulder.position.set((mountainRand() - 0.5) * 5, s * 0.35, -1.5 - mountainRand() * 3.5);
+    boulder.position.set((mountainRand() - 0.5) * 7, s * 0.35, 0.5 + mountainRand() * 2);
     boulder.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
     boulder.castShadow = true; boulder.receiveShadow = true;
     mineEntrance.add(boulder);
   }
 
-  // dark doorway recessed into the rock face, framed by timber - not a flat disc on open ground
+  // dark doorway recessed into the rock face, framed by timber
   const doorway = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 3), new THREE.MeshStandardMaterial({ color: 0x120d08, roughness: 1 }));
   doorway.position.set(0, 1.3, -0.8);
   mineEntrance.add(doorway);
@@ -491,6 +505,15 @@ function buildPlanetScene(planetId) {
   const beam = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.35, 0.4), woodMat);
   beam.position.set(0, 2.85, 0.4);
   mineEntrance.add(beam);
+  // extra support planks visibly jutting out of the mountain face around the entrance
+  const plankGeo = new THREE.BoxGeometry(0.18, 0.18, 3.4);
+  [[-2.0, 2.2, -0.4, 0.35], [2.1, 1.7, -0.6, -0.25], [-1.6, 0.9, -0.8, 0.15], [1.8, 3.1, -0.5, -0.4]].forEach(([px, py, pz, rx]) => {
+    const plank = new THREE.Mesh(plankGeo, woodMat);
+    plank.position.set(px, py, pz);
+    plank.rotation.x = rx;
+    plank.rotation.y = (mountainRand() - 0.5) * 0.5;
+    mineEntrance.add(plank);
+  });
   const railGeo = new THREE.BoxGeometry(0.1, 0.08, 3.2);
   const railMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, metalness: 0.6, roughness: 0.5 });
   const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.8);
