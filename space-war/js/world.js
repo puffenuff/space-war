@@ -285,6 +285,24 @@ function buildPlanetScene(planetId) {
   const landmark = buildLandmark(planet, groundHeightFn, rand);
   scene.add(landmark);
 
+  // ---- find a steep hillside for the mineshaft, before scattering rocks/crystals, so those can avoid it ----
+  let mineX = 0, mineZ = 0, mineY = -Infinity, mineFacing = 0, bestScore = -Infinity;
+  for (let attempt = 0; attempt < 24; attempt++) {
+    const tx = (rand() - 0.5) * planet.size * 0.7;
+    const tz = (rand() - 0.5) * planet.size * 0.7;
+    if (Math.hypot(tx, tz) < 16) continue;
+    const h = groundHeightFn(tx, tz);
+    const d = 5;
+    const gx = groundHeightFn(tx + d, tz) - groundHeightFn(tx - d, tz);
+    const gz = groundHeightFn(tx, tz + d) - groundHeightFn(tx, tz - d);
+    const steepness = Math.hypot(gx, gz);
+    const score = h * 0.6 + steepness * 4; // favor a high AND steep spot, i.e. a hillside, not a flat plain
+    if (score > bestScore) {
+      bestScore = score; mineX = tx; mineZ = tz; mineY = h;
+      mineFacing = Math.atan2(gx, gz); // points downhill - the entrance faces outward from the slope
+    }
+  }
+
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
   const rockMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
@@ -293,6 +311,7 @@ function buildPlanetScene(planetId) {
     const x = (rand() - 0.5) * planet.size * 0.9;
     const z = (rand() - 0.5) * planet.size * 0.9;
     if (Math.hypot(x, z) < 20) continue;
+    if (Math.hypot(x - mineX, z - mineZ) < 22) continue;
     const rock = new THREE.Mesh(rockGeo, rockMat);
     const s = 0.6 + rand() * 2.2;
     rock.scale.set(s, s * (0.6 + rand() * 0.6), s);
@@ -310,6 +329,7 @@ function buildPlanetScene(planetId) {
     const x = (rand() - 0.5) * planet.size * 0.85;
     const z = (rand() - 0.5) * planet.size * 0.85;
     if (Math.hypot(x, z) < 20) continue;
+    if (Math.hypot(x - mineX, z - mineZ) < 22) continue;
     const cluster = new THREE.Group();
     const shardCount = 3 + Math.floor(rand() * 3);
     for (let j = 0; j < shardCount; j++) {
@@ -442,38 +462,47 @@ function buildPlanetScene(planetId) {
     digSites.push(mound);
   }
 
-  // ---- permanent mineshaft entrance (walk in/out any time, no digging required); mounted on high ground ----
-  let mx = 0, mz = 0, my = -Infinity;
-  for (let attempt = 0; attempt < 16; attempt++) {
-    const tx = (rand() - 0.5) * planet.size * 0.7;
-    const tz = (rand() - 0.5) * planet.size * 0.7;
-    if (Math.hypot(tx, tz) < 16) continue;
-    const th = groundHeightFn(tx, tz);
-    if (th > my) { mx = tx; mz = tz; my = th; }
-  }
+  // ---- permanent mineshaft entrance, bored into the hillside found above (walk in/out any time) ----
   const mineEntrance = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
-  const pitMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 1 });
-  const pit = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 1.8, 1.4, 12), pitMat);
-  pit.position.y = -0.7;
-  mineEntrance.add(pit);
-  const postGeo = new THREE.CylinderGeometry(0.22, 0.26, 3.2, 8);
-  const postL = new THREE.Mesh(postGeo, woodMat); postL.position.set(-2.1, 1.5, 0.5);
-  const postR = new THREE.Mesh(postGeo, woodMat); postR.position.set(2.1, 1.5, 0.5);
+  const mountainMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
+
+  // rock mass the shaft appears bored into, stacked behind and above the doorway
+  const mountainGeo = new THREE.IcosahedronGeometry(1, 0);
+  const mountainRand = seededRand(planetId * 613 + 29);
+  for (let i = 0; i < 7; i++) {
+    const boulder = new THREE.Mesh(mountainGeo, mountainMat);
+    const s = 3 + mountainRand() * 5;
+    boulder.scale.set(s, s * (0.7 + mountainRand() * 0.5), s);
+    boulder.position.set((mountainRand() - 0.5) * 5, s * 0.35, -1.5 - mountainRand() * 3.5);
+    boulder.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
+    boulder.castShadow = true; boulder.receiveShadow = true;
+    mineEntrance.add(boulder);
+  }
+
+  // dark doorway recessed into the rock face, framed by timber - not a flat disc on open ground
+  const doorway = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 3), new THREE.MeshStandardMaterial({ color: 0x120d08, roughness: 1 }));
+  doorway.position.set(0, 1.3, -0.8);
+  mineEntrance.add(doorway);
+  const postGeo = new THREE.CylinderGeometry(0.22, 0.26, 3.0, 8);
+  const postL = new THREE.Mesh(postGeo, woodMat); postL.position.set(-1.15, 1.5, 0.4);
+  const postR = new THREE.Mesh(postGeo, woodMat); postR.position.set(1.15, 1.5, 0.4);
   mineEntrance.add(postL, postR);
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(4.6, 0.35, 0.4), woodMat);
-  beam.position.set(0, 3.0, 0.5);
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.35, 0.4), woodMat);
+  beam.position.set(0, 2.85, 0.4);
   mineEntrance.add(beam);
   const railGeo = new THREE.BoxGeometry(0.1, 0.08, 3.2);
   const railMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, metalness: 0.6, roughness: 0.5 });
-  const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.0);
-  const railR = new THREE.Mesh(railGeo, railMat); railR.position.set(0.5, 0.02, 1.0);
+  const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.8);
+  const railR = new THREE.Mesh(railGeo, railMat); railR.position.set(0.5, 0.02, 1.8);
   mineEntrance.add(railL, railR);
   const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
-  lantern.position.set(-2.1, 2.6, 0.5);
+  lantern.position.set(-1.15, 2.4, 0.4);
   mineEntrance.add(lantern);
-  mineEntrance.position.set(mx, my, mz);
-  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mx, my, mz), lantern };
+
+  mineEntrance.position.set(mineX, mineY, mineZ);
+  mineEntrance.rotation.y = mineFacing;
+  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mineX, mineY, mineZ), lantern };
   scene.add(mineEntrance);
 
   // ---- cave interior (built far away, teleport target); size differs per planet ----
