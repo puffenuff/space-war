@@ -619,6 +619,24 @@ function buildPlanetScene(planetId) {
   caveLightD.position.set(caveRadius * 0.5, caveHeight * 0.35, caveRadius * 0.5);
   caveGroup.add(caveLightD);
 
+  // dramatic god-ray light shafts from gaps in the ceiling
+  const rayCount = 3;
+  const godRays = [];
+  for (let i = 0; i < rayCount; i++) {
+    const ra = caveRand() * Math.PI * 2;
+    const rr = caveRadius * (0.15 + caveRand() * 0.4);
+    const rayMat = new THREE.MeshBasicMaterial({ color: 0xffcf8a, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
+    const ray = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 4.5, caveHeight * 1.05, 10, 1, true), rayMat);
+    ray.position.set(Math.cos(ra) * rr, caveHeight * 0.48, Math.sin(ra) * rr);
+    ray.rotation.z = (caveRand() - 0.5) * 0.25;
+    ray.rotation.x = (caveRand() - 0.5) * 0.25;
+    caveGroup.add(ray);
+    godRays.push(ray);
+    const rayLight = new THREE.PointLight(0xffcf8a, 0.5, caveRadius * 0.5);
+    rayLight.position.set(ray.position.x, 1.5, ray.position.z);
+    caveGroup.add(rayLight);
+  }
+
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
   const glowOrbCount = Math.min(95, Math.round(caveRadius * 0.42));
   for (let i = 0; i < glowOrbCount; i++) {
@@ -627,6 +645,20 @@ function buildPlanetScene(planetId) {
     const rr = caveRadius * (0.35 + (i % 3) * 0.2);
     o.position.set(Math.cos(a) * rr, 0.5, Math.sin(a) * rr);
     caveGroup.add(o);
+  }
+
+  // slow-drifting glowing dust motes for atmosphere
+  const moteGeo = new THREE.SphereGeometry(0.09, 6, 6);
+  const moteCount = Math.min(26, Math.round(caveRadius * 0.12));
+  const dustMotes = [];
+  for (let i = 0; i < moteCount; i++) {
+    const mote = new THREE.Mesh(moteGeo, new THREE.MeshBasicMaterial({ color: caveRand() > 0.5 ? 0xffcf8a : 0x9fe0ff, transparent: true, opacity: 0.7 }));
+    const a = caveRand() * Math.PI * 2;
+    const r = caveRand() * caveRadius * 0.75;
+    mote.position.set(Math.cos(a) * r, 1 + caveRand() * (caveHeight * 0.6), Math.sin(a) * r);
+    mote.userData = { baseY: mote.position.y, baseR: r, angle: a, speed: 0.05 + caveRand() * 0.1, bobPhase: caveRand() * Math.PI * 2 };
+    caveGroup.add(mote);
+    dustMotes.push(mote);
   }
 
   // scattered stalagmite formations rising from the floor (warm limestone tone)
@@ -667,6 +699,21 @@ function buildPlanetScene(planetId) {
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(caveRadius * 0.12, 0.01, -caveRadius * 0.12);
   caveGroup.add(pool);
+
+  // a small waterfall trickling down the wall into the pool
+  const fallHeight = caveHeight * 0.55;
+  const fallX = pool.position.x + poolRadius * 0.7;
+  const fallZ = pool.position.z + poolRadius * 0.5;
+  const waterMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  const waterfall = new THREE.Mesh(new THREE.PlaneGeometry(1.4, fallHeight), waterMat);
+  waterfall.position.set(fallX, fallHeight / 2, fallZ);
+  waterfall.rotation.y = Math.atan2(fallX - pool.position.x, fallZ - pool.position.z) + Math.PI;
+  caveGroup.add(waterfall);
+  const splashMat = new THREE.MeshBasicMaterial({ color: 0xdfF4ff, transparent: true, opacity: 0.5 });
+  const splash = new THREE.Mesh(new THREE.CircleGeometry(1.6, 12), splashMat);
+  splash.rotation.x = -Math.PI / 2;
+  splash.position.set(fallX, 0.03, fallZ);
+  caveGroup.add(splash);
 
   // glowing mineral crystal clusters, color-matched to this planet's outfit accent
   const crystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.3 });
@@ -894,6 +941,16 @@ function buildPlanetScene(planetId) {
       landmark.userData.glowParts.forEach((m) => { m.emissiveIntensity = 0.7 + Math.sin(t * 2.2) * 0.4; });
       mineEntrance.userData.lantern.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.3;
       mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
+      waterMat.opacity = 0.45 + Math.sin(t * 9) * 0.12;
+      splashMat.opacity = 0.35 + Math.sin(t * 6) * 0.15;
+      godRays.forEach((ray, i) => { ray.material.opacity = 0.1 + Math.sin(t * 0.6 + i * 2) * 0.08; });
+      dustMotes.forEach((m) => {
+        const u = m.userData;
+        u.angle += dt * u.speed;
+        m.position.x = Math.cos(u.angle) * u.baseR;
+        m.position.z = Math.sin(u.angle) * u.baseR;
+        m.position.y = u.baseY + Math.sin(t * 0.8 + u.bobPhase) * 1.2;
+      });
     },
   };
 }
