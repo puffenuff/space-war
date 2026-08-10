@@ -515,7 +515,8 @@ function buildPlanetScene(planetId) {
 
   // ---- cave interior (built far away, teleport target); size differs per planet ----
   const caveRadius = planet.caveRadius || 75;
-  const caveHeight = Math.round(caveRadius * 0.43);
+  // ceiling kept much lower than radius would suggest - a tall ceiling sits outside light range and just reads as a flat black void
+  const caveHeight = Math.round(Math.min(40, Math.max(20, caveRadius * 0.13)));
   const caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
   const caveGroup = new THREE.Group();
   caveGroup.position.copy(caveOrigin);
@@ -523,8 +524,8 @@ function buildPlanetScene(planetId) {
   const floorGeo = new THREE.CircleGeometry(caveRadius, 48);
   const floorPos = floorGeo.attributes.position;
   const floorSeed = planetId * 233 + 41;
-  const floorColorA = new THREE.Color(planet.ground2);
-  const floorColorB = floorColorA.clone().multiplyScalar(0.6);
+  const floorColorA = new THREE.Color(planet.ground2).lerp(new THREE.Color(0xffffff), 0.15);
+  const floorColorB = new THREE.Color(planet.ground2).multiplyScalar(0.85);
   const floorColors = [];
   for (let i = 0; i < floorPos.count; i++) {
     const lx = floorPos.getX(i), ly = floorPos.getY(i);

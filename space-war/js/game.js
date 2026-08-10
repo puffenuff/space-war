@@ -159,7 +159,7 @@ function enterCave(digSite) {
   const exitPos = build.caveExit.position;
   player.mesh.position.set(build.caveOrigin.x + exitPos.x, build.caveOrigin.y, build.caveOrigin.z + exitPos.z - 2);
   player.heading = Math.PI;
-  if (build.ambient) build.ambient.intensity = 0.1;
+  if (build.ambient) build.ambient.intensity = 0.22;
 }
 
 function exitCave() {
