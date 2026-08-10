@@ -500,9 +500,17 @@ function buildPlanetScene(planetId) {
   lantern.position.set(-1.15, 2.4, 0.4);
   mineEntrance.add(lantern);
 
+  // tall glowing blue beacon beam so the mineshaft is spottable from across the map
+  const shaftBeam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.15, 0.45, 30, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
+  );
+  shaftBeam.position.set(0, 15.5, 0.4);
+  mineEntrance.add(shaftBeam);
+
   mineEntrance.position.set(mineX, mineY, mineZ);
   mineEntrance.rotation.y = mineFacing;
-  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mineX, mineY, mineZ), lantern };
+  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mineX, mineY, mineZ), lantern, shaftBeam };
   scene.add(mineEntrance);
 
   // ---- cave interior (built far away, teleport target); size differs per planet ----
@@ -861,6 +869,7 @@ function buildPlanetScene(planetId) {
       exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       landmark.userData.glowParts.forEach((m) => { m.emissiveIntensity = 0.7 + Math.sin(t * 2.2) * 0.4; });
       mineEntrance.userData.lantern.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.3;
+      mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
     },
   };
 }
