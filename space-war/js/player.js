@@ -160,7 +160,8 @@ class Player {
     move.addScaledVector(right, moveX);
     if (move.lengthSq() > 1) move.normalize();
 
-    const speed = this.baseSpeed * speedMult;
+    this.sprinting = moving && input.sprintHeld;
+    const speed = this.baseSpeed * speedMult * (this.sprinting ? 1.7 : 1);
     this.mesh.position.x += move.x * speed * dt;
     this.mesh.position.z += move.z * speed * dt;
 
