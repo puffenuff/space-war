@@ -520,6 +520,31 @@ function buildPlanetScene(planetId) {
     mineEntrance.add(boulder);
   }
 
+  // rock flanking the sides and top of the doorway, so the entrance reads as carved into
+  // solid stone up close (not just distant mountain peaks). Each piece's forward reach
+  // (center z + its own radius) is capped behind doorwaySafeFrontZ, so this can never
+  // grow forward and re-cover the opening the way the old boulders/peaks used to.
+  const doorwaySafeFrontZ = -0.3;
+  [-1, 1].forEach((side) => {
+    for (let j = 0; j < 3; j++) {
+      const flank = new THREE.Mesh(boulderGeo, mountainMat);
+      const s = 1.6 + mountainRand() * 1.3;
+      flank.scale.set(s, s * (0.9 + mountainRand() * 0.6), s);
+      const fx = side * (2.3 + j * 1.1 + mountainRand() * 0.5);
+      const fy = 0.4 + j * 1.5 + mountainRand() * 0.4;
+      const fz = doorwaySafeFrontZ - s - mountainRand() * 2.5;
+      flank.position.set(fx, fy, fz);
+      flank.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
+      flank.castShadow = true; flank.receiveShadow = true;
+      mineEntrance.add(flank);
+    }
+  });
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 3.6), mountainMat);
+  lintel.position.set(0, 4.4, -3);
+  lintel.rotation.set((mountainRand() - 0.5) * 0.12, (mountainRand() - 0.5) * 0.15, (mountainRand() - 0.5) * 0.08);
+  lintel.castShadow = true; lintel.receiveShadow = true;
+  mineEntrance.add(lintel);
+
   // dark doorway recessed into the rock face, framed by timber
   const doorway = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 3), new THREE.MeshStandardMaterial({ color: 0x120d08, roughness: 1 }));
   doorway.position.set(0, 1.3, -0.8);
@@ -943,7 +968,9 @@ function buildPlanetScene(planetId) {
     const roomCenterZ = corridorEndZ - roomRadius - 4;
     const doorZ = corridorEndZ;
 
-    // glowing trail markers leading from the main chamber to the vault entrance
+    // glowing trail markers leading from the main chamber to the vault entrance - lit by
+    // real point lights every couple of markers, since emissive material alone doesn't
+    // cast any light and the cave's ambient light is dimmed way down while inCave
     const trailMat = new THREE.MeshStandardMaterial({ color: 0xffcf6a, emissive: 0xffaa33, emissiveIntensity: 0.9, roughness: 0.4 });
     const trailCount = 11;
     for (let i = 0; i < trailCount; i++) {
@@ -953,6 +980,11 @@ function buildPlanetScene(planetId) {
       const marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.32, 6), trailMat);
       marker.position.set(tx, -0.32, tz);
       caveGroup.add(marker);
+      if (i % 2 === 0) {
+        const trailLight = new THREE.PointLight(0xffaa33, 0.8, 16);
+        trailLight.position.set(tx, 1.6, tz);
+        caveGroup.add(trailLight);
+      }
     }
 
     // rock corridor connecting the main chamber to the hidden room
@@ -967,6 +999,13 @@ function buildPlanetScene(planetId) {
     const corridorCeil = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 1.6, 0.8, corridorLength), corridorMat);
     corridorCeil.position.set(0, corridorHeight - 0.5, corridorZ);
     caveGroup.add(corridorCeil);
+    // corridor lighting so the tunnel itself isn't a pitch-black void
+    const corridorLightA = new THREE.PointLight(0xffaa33, 0.9, 20);
+    corridorLightA.position.set(0, corridorHeight * 0.6, corridorStartZ - corridorLength * 0.25);
+    caveGroup.add(corridorLightA);
+    const corridorLightB = new THREE.PointLight(0xff8844, 0.9, 20);
+    corridorLightB.position.set(0, corridorHeight * 0.6, corridorStartZ - corridorLength * 0.75);
+    caveGroup.add(corridorLightB);
 
     // the sealed vault room itself
     const roomWallMat = new THREE.MeshStandardMaterial({ color: 0x351c18, roughness: 1, side: THREE.BackSide });
