@@ -788,7 +788,7 @@ function buildPlanetScene(planetId) {
     caveCoinPickups.push(m);
   }
 
-  // rock columns that span floor to ceiling
+  // rock columns that span floor to ceiling - bumpy, noise-displaced surface instead of a smooth cylinder
   const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e1e26, roughness: 1 });
   const pillarRand = seededRand(planetId * 71 + 909);
   const pillarCount = Math.min(34, Math.max(4, Math.round(caveRadius / 12)));
@@ -797,7 +797,19 @@ function buildPlanetScene(planetId) {
     const r = 12 + pillarRand() * (caveRadius - 20);
     const radiusTop = 0.6 + pillarRand() * 0.8;
     const radiusBottom = 0.9 + pillarRand() * 1.1;
-    const pillar = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, caveHeight, 7), pillarMat);
+    const pillarGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, caveHeight, 8, 6);
+    const pillarPos = pillarGeo.attributes.position;
+    const pillarSeed = planetId * 613 + i * 37 + 5;
+    for (let v = 0; v < pillarPos.count; v++) {
+      const px = pillarPos.getX(v), py = pillarPos.getY(v), pz = pillarPos.getZ(v);
+      const theta = Math.atan2(pz, px);
+      const n = fbm(Math.cos(theta) * 2 + i, Math.sin(theta) * 2 + py * 0.15, pillarSeed, 2);
+      const bump = 1 + (n - 0.5) * 0.34;
+      pillarPos.setX(v, px * bump);
+      pillarPos.setZ(v, pz * bump);
+    }
+    pillarGeo.computeVertexNormals();
+    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
     pillar.position.set(Math.cos(a) * r, caveHeight / 2 - 0.5, Math.sin(a) * r);
     pillar.rotation.y = pillarRand() * Math.PI;
     caveGroup.add(pillar);
