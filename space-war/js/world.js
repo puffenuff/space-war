@@ -502,13 +502,17 @@ function buildPlanetScene(planetId) {
     shoulder.castShadow = true; shoulder.receiveShadow = true;
     mineEntrance.add(shoulder);
   });
-  // boulders at the base where the mountain meets the ground
+  // boulders at the base where the mountain meets the ground - kept off to the sides,
+  // well clear of the doorway and its walkway, so the entrance never gets buried
   const boulderGeo = new THREE.IcosahedronGeometry(1, 0);
   for (let i = 0; i < 5; i++) {
     const boulder = new THREE.Mesh(boulderGeo, mountainMat);
     const s = 1.5 + mountainRand() * 2.5;
     boulder.scale.set(s, s * (0.7 + mountainRand() * 0.5), s);
-    boulder.position.set((mountainRand() - 0.5) * 7, s * 0.35, 0.5 + mountainRand() * 2);
+    const side = i % 2 === 0 ? 1 : -1;
+    const bx = side * (2.6 + mountainRand() * 4.5);
+    const bz = -1 + mountainRand() * 3;
+    boulder.position.set(bx, s * 0.35, bz);
     boulder.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
     boulder.castShadow = true; boulder.receiveShadow = true;
     mineEntrance.add(boulder);
