@@ -296,7 +296,10 @@ function buildPlanetScene(planetId) {
     const gx = groundHeightFn(tx + d, tz) - groundHeightFn(tx - d, tz);
     const gz = groundHeightFn(tx, tz + d) - groundHeightFn(tx, tz - d);
     const steepness = Math.hypot(gx, gz);
-    const score = h * 0.6 + steepness * 4; // favor a high AND steep spot, i.e. a hillside, not a flat plain
+    const dist = Math.hypot(tx, tz);
+    // favor a high AND steep spot (a hillside, not a flat plain), with a mild pull toward
+    // spawn so the mineshaft doesn't end up so far away it's lost in the distance fog
+    const score = h * 0.6 + steepness * 4 - dist * 0.03;
     if (score > bestScore) {
       bestScore = score; mineX = tx; mineZ = tz; mineY = h;
       mineFacing = Math.atan2(gx, gz); // points downhill - the entrance faces outward from the slope
@@ -465,7 +468,11 @@ function buildPlanetScene(planetId) {
   // ---- permanent mineshaft entrance, bored into the hillside found above (walk in/out any time) ----
   const mineEntrance = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
-  const mountainMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
+  // steered toward neutral grey stone instead of planet.ground2 - the terrain shader also
+  // shades high/steep ground toward ground2, so using that color made the whole mountain
+  // camouflage into the hillside it's sitting on
+  const mountainColor = new THREE.Color(planet.ground2).lerp(new THREE.Color(0x4a4a4a), 0.6);
+  const mountainMat = new THREE.MeshStandardMaterial({ color: mountainColor, roughness: 0.9 });
 
   // one big, tall mountain peak (not scattered boulders) that the shaft is bored into
   const mountainRand = seededRand(planetId * 613 + 29);
@@ -523,13 +530,15 @@ function buildPlanetScene(planetId) {
   lantern.position.set(-1.15, 2.4, 0.4);
   mineEntrance.add(lantern);
 
-  // tall glowing blue beacon beam so the mineshaft is spottable from across the map
-  const shaftBeam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.15, 0.45, 30, 8, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0x6fd7ff, transparent: true, opacity: 0.3, side: THREE.DoubleSide, depthWrite: false })
-  );
-  shaftBeam.position.set(0, 15.5, 0.4);
+  // tall glowing blue beacon beam so the mineshaft is spottable from across the map -
+  // fog disabled so it stays bright at distance instead of fading into the sky color
+  const shaftBeamMat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, fog: false });
+  const shaftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.6, 42, 8, 1, true), shaftBeamMat);
+  shaftBeam.position.set(0, 21.5, 0.4);
   mineEntrance.add(shaftBeam);
+  const beaconGlow = new THREE.PointLight(0x7fe0ff, 1.2, 60);
+  beaconGlow.position.set(0, 12, 0.4);
+  mineEntrance.add(beaconGlow);
 
   mineEntrance.position.set(mineX, mineY, mineZ);
   mineEntrance.rotation.y = mineFacing;
