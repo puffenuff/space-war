@@ -250,10 +250,50 @@ function buildBaseScene() {
   wardrobeSign.position.set(-24, 4.4, -4);
   scene.add(wardrobeSign);
 
+  // ---- weapons stand: armory rack displaying the currently held weapon ----
+  const weaponsStand = new THREE.Group();
+  const armoryMat = new THREE.MeshStandardMaterial({ color: 0x2a2f3a, metalness: 0.6, roughness: 0.35 });
+  const rackBase = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.8, 0.3, 16), armoryMat);
+  rackBase.position.y = 0.15;
+  weaponsStand.add(rackBase);
+  const rackPost = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.2, 0.3), armoryMat);
+  rackPost.position.y = 1.25;
+  weaponsStand.add(rackPost);
+  const rackBoard = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.4, 0.14), new THREE.MeshStandardMaterial({ color: 0x1c2230, metalness: 0.5, roughness: 0.5 }));
+  rackBoard.position.set(0, 2.1, -0.1);
+  weaponsStand.add(rackBoard);
+
+  // display weapon meshes mounted on the board, arranged in a fan
+  const weaponMeshes = {};
+  WEAPON_ORDER.forEach((key, i) => {
+    const m = buildWeaponMesh(key);
+    m.scale.set(1.3, 1.3, 1.3);
+    const spread = (i - (WEAPON_ORDER.length - 1) / 2) * 0.45;
+    m.position.set(spread, 2.1, 0.06);
+    m.rotation.y = Math.PI / 2 - spread * 0.5;
+    weaponsStand.add(m);
+    weaponMeshes[key] = m;
+  });
+
+  const armoryGlow = new THREE.PointLight(0xff8a3d, 0.9, 6);
+  armoryGlow.position.set(0, 2.1, 0.6);
+  weaponsStand.add(armoryGlow);
+
+  const ringWeapons = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.05, 8, 24), new THREE.MeshBasicMaterial({ color: 0xff8a3d }));
+  ringWeapons.rotation.x = Math.PI / 2; ringWeapons.position.y = 0.02;
+  weaponsStand.add(ringWeapons);
+
+  weaponsStand.position.set(24, 0, -4);
+  weaponsStand.userData = { type: 'weaponsStand', label: 'Weapons', weaponMeshes };
+  scene.add(weaponsStand);
+  const weaponsSign = makeLabel('WEAPONS', '#ff8a3d');
+  weaponsSign.position.set(24, 4.4, -4);
+  scene.add(weaponsSign);
+
   return {
     scene, groundHeightFn,
     spawnPoint: { x: 0, z: 4 },
-    shops, padGroup, starMap, baseRover, wardrobe,
+    shops, padGroup, starMap, baseRover, wardrobe, weaponsStand,
     tick(dt, t) {
       orb.position.y = 2.1 + Math.sin(t * 2) * 0.1;
       orb.rotation.y = t;
@@ -266,6 +306,8 @@ function buildBaseScene() {
         const a = t * 0.8 + (i / motes.length) * Math.PI * 2;
         m.position.set(Math.cos(a) * 1.5, 1.6 + Math.sin(t * 1.5 + i) * 0.6, Math.sin(a) * 1.5);
       });
+      ringWeapons.rotation.z = t * 0.6;
+      armoryGlow.intensity = 0.7 + Math.sin(t * 2.4) * 0.25;
     },
   };
 }

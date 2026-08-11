@@ -27,6 +27,93 @@ function limb(w, h, d, color) {
   return m;
 }
 
+// ===================== WEAPON MODELS =====================
+function buildWeaponMesh(type) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5, metalness: 0.4 });
+  const stats = WEAPONS[type] || WEAPONS.pistol;
+  const accentMat = new THREE.MeshStandardMaterial({ color: stats.color, emissive: stats.color, emissiveIntensity: 0.5, roughness: 0.3 });
+  let muzzleZ = 0.3;
+
+  const box = (w, h, d, mat = bodyMat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.castShadow = true;
+    return m;
+  };
+  const barrel = (r, len, mat = bodyMat) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8), mat);
+    m.rotation.x = Math.PI / 2;
+    m.castShadow = true;
+    return m;
+  };
+
+  switch (stats.key) {
+    case 'smg': {
+      const body = box(0.1, 0.14, 0.42, bodyMat); body.position.z = 0.2; g.add(body);
+      const mag = box(0.07, 0.24, 0.09, bodyMat); mag.position.set(0, -0.16, 0.18); mag.rotation.x = -0.15; g.add(mag);
+      const stock = box(0.06, 0.1, 0.16, bodyMat); stock.position.set(0, -0.02, -0.14); g.add(stock);
+      const grip = box(0.08, 0.18, 0.08, bodyMat); grip.position.set(0, -0.12, 0.06); g.add(grip);
+      const glow = box(0.03, 0.03, 0.03, accentMat); glow.position.set(0, 0.03, 0.41); g.add(glow);
+      muzzleZ = 0.42;
+      break;
+    }
+    case 'shotgun': {
+      const barrelL = barrel(0.045, 0.55, bodyMat); barrelL.position.set(-0.05, 0.02, 0.32); g.add(barrelL);
+      const barrelR = barrel(0.045, 0.55, bodyMat); barrelR.position.set(0.05, 0.02, 0.32); g.add(barrelR);
+      const body = box(0.14, 0.14, 0.22, bodyMat); body.position.z = 0.05; g.add(body);
+      const pump = box(0.1, 0.09, 0.18, bodyMat); pump.position.set(0, -0.06, 0.28); g.add(pump);
+      const stock = box(0.08, 0.13, 0.22, bodyMat); stock.position.set(0, -0.01, -0.18); g.add(stock);
+      const glow = box(0.1, 0.02, 0.02, accentMat); glow.position.set(0, 0.06, 0.05); g.add(glow);
+      muzzleZ = 0.6;
+      break;
+    }
+    case 'assaultRifle': {
+      const bar = barrel(0.035, 0.4, bodyMat); bar.position.set(0, 0.03, 0.42); g.add(bar);
+      const body = box(0.11, 0.15, 0.4, bodyMat); body.position.z = 0.1; g.add(body);
+      const mag = box(0.07, 0.28, 0.09, bodyMat); mag.position.set(0, -0.18, 0.14); mag.rotation.x = 0.2; g.add(mag);
+      const stock = box(0.07, 0.1, 0.24, bodyMat); stock.position.set(0, 0, -0.24); g.add(stock);
+      const sight = box(0.03, 0.06, 0.08, accentMat); sight.position.set(0, 0.12, 0.05); g.add(sight);
+      muzzleZ = 0.62;
+      break;
+    }
+    case 'lmg': {
+      const bar = barrel(0.045, 0.5, bodyMat); bar.position.set(0, 0.02, 0.45); g.add(bar);
+      const body = box(0.14, 0.18, 0.46, bodyMat); body.position.z = 0.08; g.add(body);
+      const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.1, 12), bodyMat);
+      drum.rotation.z = Math.PI / 2; drum.position.set(0, -0.2, 0.12); drum.castShadow = true; g.add(drum);
+      const bipodL = box(0.03, 0.22, 0.03, bodyMat); bipodL.position.set(-0.08, -0.18, 0.55); bipodL.rotation.z = 0.3; g.add(bipodL);
+      const bipodR = box(0.03, 0.22, 0.03, bodyMat); bipodR.position.set(0.08, -0.18, 0.55); bipodR.rotation.z = -0.3; g.add(bipodR);
+      const stock = box(0.08, 0.12, 0.22, bodyMat); stock.position.set(0, 0, -0.24); g.add(stock);
+      const glow = box(0.1, 0.02, 0.02, accentMat); glow.position.set(0, 0.1, 0.05); g.add(glow);
+      muzzleZ = 0.7;
+      break;
+    }
+    case 'sniper': {
+      const bar = barrel(0.03, 0.65, bodyMat); bar.position.set(0, 0.02, 0.55); g.add(bar);
+      const body = box(0.1, 0.13, 0.36, bodyMat); body.position.z = 0.08; g.add(body);
+      const scopeMount = box(0.03, 0.08, 0.02, bodyMat); scopeMount.position.set(0, 0.11, 0.05); g.add(scopeMount);
+      const scope = barrel(0.035, 0.28, accentMat); scope.position.set(0, 0.16, 0.05); g.add(scope);
+      const stock = box(0.07, 0.1, 0.28, bodyMat); stock.position.set(0, -0.01, -0.26); g.add(stock);
+      muzzleZ = 0.88;
+      break;
+    }
+    case 'pistol':
+    default: {
+      const body = box(0.09, 0.13, 0.32, bodyMat); body.position.z = 0.16; g.add(body);
+      const grip = box(0.08, 0.22, 0.09, bodyMat); grip.position.set(0, -0.13, 0.02); g.add(grip);
+      const glow = box(0.03, 0.03, 0.03, accentMat); glow.position.set(0, 0.02, 0.31); g.add(glow);
+      muzzleZ = 0.32;
+      break;
+    }
+  }
+
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0, muzzleZ);
+  g.add(muzzle);
+  g.userData = { muzzle };
+  return g;
+}
+
 function createAstronaut(suitColor = 0xe8e8e8) {
   const group = new THREE.Group();
   group.name = 'astronaut';
@@ -53,7 +140,7 @@ function createAstronaut(suitColor = 0xe8e8e8) {
   const armR = armL.clone(); armR.position.x = 0.44;
   group.add(armL, armR);
 
-  const legL = limb(0.24, 0.62, 0.28, 0xcfcfcf); legL.geometry.translate(0, -0.31, 0); legL.position.set(-0.18, 0.62, 0);
+  const legL = limb(0.24, 0.62, 0.28, suitColor); legL.geometry.translate(0, -0.31, 0); legL.position.set(-0.18, 0.62, 0);
   const legR = legL.clone(); legR.position.x = 0.18;
   group.add(legL, legR);
 
@@ -70,15 +157,13 @@ function createAstronaut(suitColor = 0xe8e8e8) {
   flameR.position.x = 0.14;
   group.add(flameL, flameR);
 
-  // gun — held by the right hand, so it swings with the arm instead of floating in place
-  const gun = new THREE.Group();
-  const gunBody = limb(0.1, 0.14, 0.45, 0x333333);
-  gunBody.position.z = 0.28;
-  gun.add(gunBody);
-  gun.position.set(0.16, -0.56, 0.06);
-  armR.add(gun);
+  // gun mount — held by the right hand, so it swings with the arm; the actual weapon
+  // model is built and swapped in via Player.setWeapon() so guns can be changed at runtime
+  const gunMount = new THREE.Group();
+  gunMount.position.set(0.16, -0.56, 0.06);
+  armR.add(gunMount);
 
-  group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gun, chestLight, visor, flameMat: [flameL.material, flameR.material] };
+  group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gunMount, weaponMesh: null, chestLight, visor, flameMat: [flameL.material, flameR.material] };
   return group;
 }
 
@@ -105,6 +190,21 @@ class Player {
     this.onFire = opts.onFire || (() => {});
     this.onJump = opts.onJump || (() => {});
     this.getGroundHeight = opts.getGroundHeight || (() => 0);
+
+    this.weaponType = null;
+    this.weaponStats = null;
+    this.setWeapon(opts.weaponType || 'pistol');
+  }
+
+  setWeapon(type) {
+    const stats = WEAPONS[type] || WEAPONS.pistol;
+    this.weaponType = stats.key;
+    this.weaponStats = stats;
+    const mount = this.mesh.userData.gunMount;
+    while (mount.children.length) mount.remove(mount.children[0]);
+    const model = buildWeaponMesh(this.weaponType);
+    mount.add(model);
+    this.mesh.userData.weaponMesh = model;
   }
 
   get position() { return this.mesh.position; }
@@ -114,6 +214,8 @@ class Player {
     u.body.material.color.set(hex);
     u.armL.material.color.set(hex);
     u.armR.material.color.set(hex);
+    u.legL.material.color.set(hex);
+    u.legR.material.color.set(hex);
     const isDefault = hex === 0xe8e8e8;
     if (isDefault) {
       u.chestLight.material.color.set(0xff5a5a);
@@ -133,9 +235,10 @@ class Player {
   removeFrom(scene) { scene.remove(this.mesh); }
 
   worldFireOrigin() {
-    const gun = this.mesh.userData.gun;
+    const weaponMesh = this.mesh.userData.weaponMesh;
+    const muzzle = (weaponMesh && weaponMesh.userData.muzzle) || this.mesh.userData.gunMount;
     const p = new THREE.Vector3();
-    gun.getWorldPosition(p);
+    muzzle.getWorldPosition(p);
     return p;
   }
   worldFireDirection() {
@@ -191,7 +294,7 @@ class Player {
     // fire
     this.fireCooldown -= dt;
     if ((input.fireHeld || input.firePressed) && this.fireCooldown <= 0) {
-      this.fireCooldown = 0.28;
+      this.fireCooldown = (this.weaponStats && this.weaponStats.cooldown) || 0.28;
       this.recoil = 1;
       this.onFire(this.worldFireOrigin(), this.worldFireDirection());
     }
@@ -224,7 +327,7 @@ class Player {
     // gun recoil
     if (this.recoil > 0) {
       this.recoil = Math.max(0, this.recoil - dt * 6);
-      u.gun.position.z = 0.06 - this.recoil * 0.12;
+      u.weaponMesh.position.z = -this.recoil * 0.12;
     }
 
     // digging animation

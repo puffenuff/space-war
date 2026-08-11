@@ -53,7 +53,7 @@ function applyUpgradeEffects() {
 }
 
 function speedMultiplier() { return 1 + state.upgrades.speed * 0.16; }
-function gunDamage() { return 12 + state.upgrades.damage * 6; }
+function gunDamage(baseDamage) { return baseDamage + state.upgrades.damage * 6; }
 
 // ===================== GROUND HEIGHT =====================
 function getGroundHeightCurrent(x, z) {
@@ -68,10 +68,20 @@ player.getGroundHeight = (x, z) => getGroundHeightCurrent(x, z);
 // ===================== FIRE HANDLING =====================
 player.onFire = (origin, dir) => {
   if (mode !== 'planet') return;
-  const list = inCave ? [] : activeBuild.enemies;
-  const p = createProjectile(origin, dir, { color: 0x8dffb0, speed: 46, damage: gunDamage(), owner: 'player', life: 2.2 });
-  activeScene.add(p);
-  activeBuild.projectiles.push(p);
+  const w = player.weaponStats;
+  const pelletCount = w.pellets || 1;
+  for (let i = 0; i < pelletCount; i++) {
+    let d = dir;
+    if (w.spread) {
+      d = dir.clone();
+      d.applyAxisAngle(new THREE.Vector3(0, 1, 0), (Math.random() - 0.5) * w.spread);
+      d.y += (Math.random() - 0.5) * w.spread * 0.5;
+      d.normalize();
+    }
+    const p = createProjectile(origin, d, { color: w.color, speed: w.speed, damage: gunDamage(w.damage), owner: 'player', life: 2.2 });
+    activeScene.add(p);
+    activeBuild.projectiles.push(p);
+  }
   sfx.shoot();
 };
 player.onJump = () => sfx.jump();
@@ -299,7 +309,7 @@ function collectiblesTick(dt) {
 
 function findNearestInteractable() {
   if (mode === 'base') {
-    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap, activeBuild.wardrobe];
+    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap, activeBuild.wardrobe, activeBuild.weaponsStand];
     if (!drivingVehicle) cands.push(activeBuild.baseRover);
     return nearestOf(cands, (o) => o.position, [3.6, 4.2, 3.6, 3]);
   }
@@ -346,6 +356,7 @@ function promptLabelFor(obj) {
     if (d.type === 'starMap') return 'Open Star Map';
     if (d.type === 'vehicle') return 'Enter Rover';
     if (d.type === 'wardrobe') return 'Change Outfit';
+    if (d.type === 'weaponsStand') return 'Browse Weapons';
   } else {
     const d = obj.userData;
     if (d.type === 'returnBeacon') return 'Return to Base';
@@ -367,6 +378,7 @@ function handleInteractTap(obj) {
     if (d.type === 'launchPad') { tryLaunch(); return; }
     if (d.type === 'vehicle') { enterVehicle(obj); return; }
     if (d.type === 'wardrobe') { openWardrobe(); return; }
+    if (d.type === 'weaponsStand') { openWeapons(); return; }
   } else {
     if (d.type === 'returnBeacon') { enterBase(); return; }
     if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
@@ -486,6 +498,48 @@ function openWardrobe() {
   });
 
   ui.openPanel('🧥 WARDROBE', body);
+}
+
+function openWeapons() {
+  const body = document.createElement('div');
+  WEAPON_ORDER.forEach((key) => {
+    const w = WEAPONS[key];
+    const owned = !!state.weaponsOwned[key];
+    const equipped = state.equippedWeapon === key;
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `<div><div class="si-name">${w.name}${equipped ? ' (Equipped)' : ''}</div><div class="si-desc">${w.desc}</div></div>`;
+    const btn = document.createElement('button');
+    if (equipped) {
+      btn.textContent = 'Equipped';
+      btn.disabled = true;
+    } else if (owned) {
+      btn.textContent = 'Equip';
+      btn.disabled = false;
+      btn.onclick = () => {
+        sfx.uiClick();
+        state.equippedWeapon = key;
+        player.setWeapon(key);
+        saveGame();
+        openWeapons();
+      };
+    } else {
+      btn.textContent = `${w.cost} coins`;
+      btn.disabled = state.coins < w.cost;
+      btn.onclick = () => {
+        state.coins -= w.cost;
+        state.weaponsOwned[key] = true;
+        state.equippedWeapon = key;
+        player.setWeapon(key);
+        saveGame(); ui.updateCoins(state.coins);
+        sfx.buy();
+        openWeapons();
+      };
+    }
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+  ui.openPanel('🔫 WEAPONS', body);
 }
 
 function openStarmap() {
@@ -797,6 +851,7 @@ document.getElementById('btn-new-game').addEventListener('click', () => {
   resetState();
   applyUpgradeEffects();
   if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
+  player.setWeapon(state.equippedWeapon);
   ui.showTitleScreen(false);
   ui.showHUD(true);
   enterBase();
@@ -806,6 +861,7 @@ document.getElementById('btn-continue').addEventListener('click', () => {
   loadGame();
   applyUpgradeEffects();
   if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
+  player.setWeapon(state.equippedWeapon);
   ui.showTitleScreen(false);
   ui.showHUD(true);
   enterBase();

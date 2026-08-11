@@ -208,6 +208,16 @@ const MISSIONS = {
   ],
 };
 
+const WEAPONS = {
+  pistol: { key: 'pistol', name: 'Pistol', desc: 'Reliable sidearm. Standard issue.', cost: 0, damage: 16, cooldown: 0.32, speed: 44, color: 0x8dffb0, pellets: 1, spread: 0 },
+  smg: { key: 'smg', name: 'SMG', desc: 'Fast-firing, lower damage per shot.', cost: 140, damage: 9, cooldown: 0.1, speed: 46, color: 0xffe45e, pellets: 1, spread: 0.05 },
+  shotgun: { key: 'shotgun', name: 'Shotgun', desc: 'Devastating up close, wide spread of pellets.', cost: 220, damage: 9, cooldown: 0.7, speed: 40, color: 0xff8a3d, pellets: 6, spread: 0.16 },
+  assaultRifle: { key: 'assaultRifle', name: 'Assault Rifle', desc: 'Balanced automatic fire.', cost: 300, damage: 15, cooldown: 0.15, speed: 50, color: 0x5ecbff, pellets: 1, spread: 0.03 },
+  lmg: { key: 'lmg', name: 'LMG', desc: 'Heavy suppressive fire with a big drum mag.', cost: 380, damage: 13, cooldown: 0.08, speed: 48, color: 0xff5a5a, pellets: 1, spread: 0.06 },
+  sniper: { key: 'sniper', name: 'Sniper Rifle', desc: 'Slow, devastating precision shots.', cost: 460, damage: 75, cooldown: 1.15, speed: 80, color: 0xd85eff, pellets: 1, spread: 0 },
+};
+const WEAPON_ORDER = ['pistol', 'smg', 'shotgun', 'assaultRifle', 'lmg', 'sniper'];
+
 const SHOP_ITEMS = {
   parts: [
     { key: 'engine', name: 'Rocket Engine', desc: 'Buy the engine outright.', cost: 90, type: 'rocketPart' },

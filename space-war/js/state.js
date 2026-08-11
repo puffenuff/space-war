@@ -17,6 +17,8 @@ function freshState() {
     planets,
     outfitsFound: {},
     equippedSuitColor: null,
+    weaponsOwned: { pistol: true },
+    equippedWeapon: 'pistol',
     location: 'base',
   };
 }
