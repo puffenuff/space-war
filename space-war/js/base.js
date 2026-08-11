@@ -290,10 +290,63 @@ function buildBaseScene() {
   weaponsSign.position.set(24, 4.4, -4);
   scene.add(weaponsSign);
 
+  // ---- codes terminal: enter cheat codes for special rewards ----
+  const codesStand = new THREE.Group();
+  const terminalMat = new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.5, roughness: 0.4 });
+  const codesBase = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 0.3, 14), terminalMat);
+  codesBase.position.y = 0.15;
+  codesStand.add(codesBase);
+  const codesPost = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.6, 0.35), terminalMat);
+  codesPost.position.y = 1.1;
+  codesStand.add(codesPost);
+
+  const screenFrame = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.1, 0.14), terminalMat);
+  screenFrame.position.set(0, 2.1, 0);
+  screenFrame.rotation.x = -0.28;
+  codesStand.add(screenFrame);
+  const screenGlowMat = new THREE.MeshStandardMaterial({ color: 0x1a3a1a, emissive: 0x39ff6a, emissiveIntensity: 0.7, metalness: 0.2, roughness: 0.3 });
+  const screenGlow = new THREE.Mesh(new THREE.PlaneGeometry(1.28, 0.9), screenGlowMat);
+  screenGlow.position.set(0, 2.1, 0.08);
+  screenGlow.rotation.x = -0.28;
+  codesStand.add(screenGlow);
+  // a few little "readout" pixels on the screen for texture
+  const pixelMat = new THREE.MeshBasicMaterial({ color: 0x9bffb0 });
+  const codePixels = [];
+  for (let i = 0; i < 5; i++) {
+    const px = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.07), pixelMat);
+    px.position.set(0, 2.42 - i * 0.15, 0.09);
+    px.rotation.x = -0.28;
+    codesStand.add(px);
+    codePixels.push(px);
+  }
+
+  const keyboard = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.08, 0.5), terminalMat);
+  keyboard.position.set(0, 1.55, 0.45);
+  keyboard.rotation.x = -0.15;
+  codesStand.add(keyboard);
+
+  const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.1, 6), terminalMat);
+  antenna.position.set(0.65, 3.0, -0.1);
+  codesStand.add(antenna);
+  const antennaLight = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), new THREE.MeshBasicMaterial({ color: 0x39ff6a }));
+  antennaLight.position.set(0.65, 3.6, -0.1);
+  codesStand.add(antennaLight);
+
+  const ringCodes = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.05, 8, 24), new THREE.MeshBasicMaterial({ color: 0x39ff6a }));
+  ringCodes.rotation.x = Math.PI / 2; ringCodes.position.y = 0.02;
+  codesStand.add(ringCodes);
+
+  codesStand.position.set(-24, 0, 4);
+  codesStand.userData = { type: 'codesStand', label: 'Codes' };
+  scene.add(codesStand);
+  const codesSign = makeLabel('CODES', '#39ff6a');
+  codesSign.position.set(-24, 4.4, 4);
+  scene.add(codesSign);
+
   return {
     scene, groundHeightFn,
     spawnPoint: { x: 0, z: 4 },
-    shops, padGroup, starMap, baseRover, wardrobe, weaponsStand,
+    shops, padGroup, starMap, baseRover, wardrobe, weaponsStand, codesStand,
     tick(dt, t) {
       orb.position.y = 2.1 + Math.sin(t * 2) * 0.1;
       orb.rotation.y = t;
@@ -308,6 +361,10 @@ function buildBaseScene() {
       });
       ringWeapons.rotation.z = t * 0.6;
       armoryGlow.intensity = 0.7 + Math.sin(t * 2.4) * 0.25;
+      ringCodes.rotation.z = -t * 0.6;
+      screenGlowMat.emissiveIntensity = 0.55 + Math.sin(t * 1.6) * 0.2;
+      antennaLight.scale.setScalar(0.7 + Math.sin(t * 5) * 0.3);
+      codePixels.forEach((px, i) => { px.visible = Math.sin(t * 3 + i * 1.7) > -0.3; });
     },
   };
 }

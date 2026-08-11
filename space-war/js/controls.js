@@ -8,6 +8,7 @@ const input = {
   interactPressed: false,
   interactHeld: false,
   sprintHeld: false,
+  reloadPressed: false,
 };
 
 const keys = {};
@@ -15,22 +16,28 @@ let isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 let kbFire = false, mouseFire = false, touchFire = false;
 let kbInteract = false, touchInteract = false;
 let kbSprint = false, touchSprint = false;
+let kbReload = false, touchReload = false;
 
 function isTouchDevice() { return isTouch; }
 
 function initControls(canvas) {
+  const isTypingTarget = (e) => e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
   window.addEventListener('keydown', (e) => {
+    if (isTypingTarget(e)) return;
     keys[e.code] = true;
     if (e.code === 'Space') { input.jumpPressed = true; e.preventDefault(); }
     if (e.code === 'KeyF') { if (!kbFire) input.firePressed = true; kbFire = true; }
     if (e.code === 'KeyE') { if (!kbInteract) input.interactPressed = true; kbInteract = true; }
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') kbSprint = true;
+    if (e.code === 'KeyR') { if (!kbReload) input.reloadPressed = true; kbReload = true; }
   });
   window.addEventListener('keyup', (e) => {
+    if (isTypingTarget(e)) return;
     keys[e.code] = false;
     if (e.code === 'KeyF') kbFire = false;
     if (e.code === 'KeyE') kbInteract = false;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') kbSprint = false;
+    if (e.code === 'KeyR') kbReload = false;
   });
 
   // ---- mouse look (drag) ----
@@ -121,6 +128,7 @@ function initControls(canvas) {
   bindHold('btn-interact', () => { if (!touchInteract) input.interactPressed = true; touchInteract = true; }, () => { touchInteract = false; });
   bindHold('btn-fire', () => { if (!touchFire) input.firePressed = true; touchFire = true; }, () => { touchFire = false; });
   bindHold('btn-sprint', () => { touchSprint = true; }, () => { touchSprint = false; });
+  bindHold('btn-reload', () => { if (!touchReload) input.reloadPressed = true; touchReload = true; }, () => { touchReload = false; });
 
   if (isTouch) {
     document.getElementById('touch-controls').classList.remove('hidden');
@@ -146,6 +154,7 @@ function consumeOneShots() {
   input.jumpPressed = false;
   input.firePressed = false;
   input.interactPressed = false;
+  input.reloadPressed = false;
   input.lookDX = 0;
   input.lookDY = 0;
 }

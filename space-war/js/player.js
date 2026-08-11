@@ -189,10 +189,16 @@ class Player {
 
     this.onFire = opts.onFire || (() => {});
     this.onJump = opts.onJump || (() => {});
+    this.onReloadStart = opts.onReloadStart || (() => {});
+    this.onReloadDone = opts.onReloadDone || (() => {});
+    this.onEmptyFire = opts.onEmptyFire || (() => {});
     this.getGroundHeight = opts.getGroundHeight || (() => 0);
 
     this.weaponType = null;
     this.weaponStats = null;
+    this.ammo = 0;
+    this.reloading = false;
+    this.reloadTimer = 0;
     this.setWeapon(opts.weaponType || 'pistol');
   }
 
@@ -200,11 +206,21 @@ class Player {
     const stats = WEAPONS[type] || WEAPONS.pistol;
     this.weaponType = stats.key;
     this.weaponStats = stats;
+    this.ammo = stats.magSize;
+    this.reloading = false;
+    this.reloadTimer = 0;
     const mount = this.mesh.userData.gunMount;
     while (mount.children.length) mount.remove(mount.children[0]);
     const model = buildWeaponMesh(this.weaponType);
     mount.add(model);
     this.mesh.userData.weaponMesh = model;
+  }
+
+  startReload() {
+    if (this.reloading || this.ammo >= this.weaponStats.magSize) return;
+    this.reloading = true;
+    this.reloadTimer = this.weaponStats.reloadTime;
+    this.onReloadStart();
   }
 
   get position() { return this.mesh.position; }
@@ -291,12 +307,29 @@ class Player {
       this.onGround = true;
     }
 
-    // fire
+    // reload
+    if (input.reloadPressed) this.startReload();
+    if (this.reloading) {
+      this.reloadTimer -= dt;
+      if (this.reloadTimer <= 0) {
+        this.reloading = false;
+        this.ammo = this.weaponStats.magSize;
+        this.onReloadDone();
+      }
+    }
+
+    // fire - once the mag is empty, firing does nothing (a dry click) until the player
+    // explicitly reloads; there's no auto-reload, so running dry has real weight
     this.fireCooldown -= dt;
-    if ((input.fireHeld || input.firePressed) && this.fireCooldown <= 0) {
-      this.fireCooldown = (this.weaponStats && this.weaponStats.cooldown) || 0.28;
-      this.recoil = 1;
-      this.onFire(this.worldFireOrigin(), this.worldFireDirection());
+    if ((input.fireHeld || input.firePressed) && this.fireCooldown <= 0 && !this.reloading) {
+      if (this.ammo > 0) {
+        this.fireCooldown = (this.weaponStats && this.weaponStats.cooldown) || 0.28;
+        this.ammo -= 1;
+        this.recoil = 1;
+        this.onFire(this.worldFireOrigin(), this.worldFireDirection());
+      } else if (input.firePressed) {
+        this.onEmptyFire();
+      }
     }
 
     this.animate(dt, moving);

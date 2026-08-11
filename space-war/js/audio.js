@@ -113,6 +113,12 @@ const sfx = {
   arrive() { [440, 554, 659, 880].forEach((f, i) => tone(f, { type: 'sine', dur: 0.3, vol: 0.18, delay: i * 0.09 })); },
   knockedOut() { tone(220, { type: 'sawtooth', dur: 0.7, vol: 0.22, slideTo: 60 }); },
   win() { [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, { type: 'triangle', dur: 0.4, vol: 0.24, delay: i * 0.14 })); },
+  emptyClick() { tone(200, { type: 'square', dur: 0.04, vol: 0.1, slideTo: 140 }); },
+  reload() {
+    tone(180, { type: 'square', dur: 0.05, vol: 0.1 });
+    tone(260, { type: 'square', dur: 0.05, vol: 0.1, delay: 0.16 });
+  },
+  reloadDone() { tone(480, { type: 'square', dur: 0.06, vol: 0.13 }); tone(720, { type: 'square', dur: 0.08, vol: 0.13, delay: 0.05 }); },
 };
 
 // ---- sustained rocket engine rumble (loops for the whole flight, not just a blip) ----

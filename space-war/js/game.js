@@ -85,6 +85,9 @@ player.onFire = (origin, dir) => {
   sfx.shoot();
 };
 player.onJump = () => sfx.jump();
+player.onEmptyFire = () => sfx.emptyClick();
+player.onReloadStart = () => sfx.reload();
+player.onReloadDone = () => sfx.reloadDone();
 
 // ===================== SCENE TRANSITIONS =====================
 function detachPlayer() {
@@ -315,7 +318,7 @@ function collectiblesTick(dt) {
 
 function findNearestInteractable() {
   if (mode === 'base') {
-    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap, activeBuild.wardrobe, activeBuild.weaponsStand];
+    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap, activeBuild.wardrobe, activeBuild.weaponsStand, activeBuild.codesStand];
     if (!drivingVehicle) cands.push(activeBuild.baseRover);
     return nearestOf(cands, (o) => o.position, [3.6, 4.2, 3.6, 3]);
   }
@@ -363,6 +366,7 @@ function promptLabelFor(obj) {
     if (d.type === 'vehicle') return 'Enter Rover';
     if (d.type === 'wardrobe') return 'Change Outfit';
     if (d.type === 'weaponsStand') return 'Browse Weapons';
+    if (d.type === 'codesStand') return 'Enter Code';
   } else {
     const d = obj.userData;
     if (d.type === 'returnBeacon') return 'Return to Base';
@@ -385,6 +389,7 @@ function handleInteractTap(obj) {
     if (d.type === 'vehicle') { enterVehicle(obj); return; }
     if (d.type === 'wardrobe') { openWardrobe(); return; }
     if (d.type === 'weaponsStand') { openWeapons(); return; }
+    if (d.type === 'codesStand') { openCodes(); return; }
   } else {
     if (d.type === 'returnBeacon') { enterBase(); return; }
     if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
@@ -546,6 +551,65 @@ function openWeapons() {
     body.appendChild(row);
   });
   ui.openPanel('🔫 WEAPONS', body);
+}
+
+function openCodes() {
+  const body = document.createElement('div');
+
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 4px;';
+  hint.textContent = 'Enter a code to redeem a reward.';
+  body.appendChild(hint);
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex; gap:8px;';
+  const codeInput = document.createElement('input');
+  codeInput.type = 'text';
+  codeInput.className = 'code-input';
+  codeInput.placeholder = 'CODE';
+  codeInput.autocomplete = 'off';
+  codeInput.autocapitalize = 'off';
+  codeInput.spellcheck = false;
+  const submitBtn = document.createElement('button');
+  submitBtn.className = 'code-submit';
+  submitBtn.textContent = 'Redeem';
+  row.appendChild(codeInput);
+  row.appendChild(submitBtn);
+  body.appendChild(row);
+
+  const feedback = document.createElement('p');
+  feedback.style.cssText = 'font-size:13px; font-weight:700; min-height:16px; padding:2px;';
+  body.appendChild(feedback);
+
+  const redeem = () => {
+    const code = codeInput.value.trim().toLowerCase();
+    if (!code) return;
+    const entry = CHEAT_CODES[code];
+    if (!entry) {
+      feedback.textContent = 'Invalid code.';
+      feedback.style.color = '#ff5b5b';
+      sfx.denied();
+      return;
+    }
+    if (entry.reward === 'coins') {
+      state.coins += entry.amount;
+      ui.updateCoins(state.coins);
+    }
+    feedback.textContent = `Code accepted! +${entry.amount} Coins`;
+    feedback.style.color = '#7fff9e';
+    saveGame();
+    sfx.win();
+    codeInput.value = '';
+  };
+  submitBtn.onclick = redeem;
+  codeInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') redeem();
+  });
+  codeInput.addEventListener('keyup', (e) => e.stopPropagation());
+
+  ui.openPanel('💻 CODES', body);
+  setTimeout(() => codeInput.focus(), 50);
 }
 
 function openStarmap() {
@@ -862,7 +926,9 @@ function tick() {
   ui.updateCoins(state.coins);
   ui.updateParts(rocketPartsCount());
   ui.updateHealth(state.health, state.maxHealth);
-  ui.showCrosshair(mode === 'planet' && !drivingVehicle && !ui.isPanelOpen());
+  const showCombatHud = mode === 'planet' && !drivingVehicle && !ui.isPanelOpen();
+  ui.showCrosshair(showCombatHud);
+  ui.updateAmmo(showCombatHud, player.ammo, player.weaponStats.magSize, player.reloading);
 
   saveTimer += dt;
   if (saveTimer > 12) { saveTimer = 0; saveGame(); }
