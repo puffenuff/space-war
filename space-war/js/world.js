@@ -694,7 +694,10 @@ function buildPlanetScene(planetId) {
 
   // still reflective water pool on the cave floor
   const poolRadius = caveRadius * (0.28 + caveRand() * 0.1);
-  const poolMat = new THREE.MeshStandardMaterial({ color: 0x0a1420, metalness: 0.95, roughness: 0.06, envMapIntensity: 1.2 });
+  // no scene envMap exists, so a near-black high-metalness material has nothing to
+  // reflect and renders as a flat black disc - use a lit, low-metalness "dark water"
+  // look instead so point lights actually show up on the surface
+  const poolMat = new THREE.MeshStandardMaterial({ color: 0x123a4a, emissive: 0x0a1f28, emissiveIntensity: 0.3, metalness: 0.2, roughness: 0.1 });
   const pool = new THREE.Mesh(new THREE.CircleGeometry(poolRadius, 28), poolMat);
   pool.rotation.x = -Math.PI / 2;
   pool.position.set(caveRadius * 0.12, 0.01, -caveRadius * 0.12);
@@ -943,6 +946,7 @@ function buildPlanetScene(planetId) {
       mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
       waterMat.opacity = 0.45 + Math.sin(t * 9) * 0.12;
       splashMat.opacity = 0.35 + Math.sin(t * 6) * 0.15;
+      poolMat.emissiveIntensity = 0.24 + Math.sin(t * 1.3) * 0.1;
       godRays.forEach((ray, i) => { ray.material.opacity = 0.1 + Math.sin(t * 0.6 + i * 2) * 0.08; });
       dustMotes.forEach((m) => {
         const u = m.userData;
