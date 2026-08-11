@@ -146,38 +146,46 @@ function createYetiBoss(spawn) {
     home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
     walkT: Math.random() * 10, alive: true,
     hitRadius: 3.4, punchDamage: 24, punchRange: 3.6,
-    attackState: 'burst', attackTimer: 0, hasHitThisSwing: false,
-    armL, armR, legL, legR, eyeL, eyeR,
+    slamRange: 11, slamRadius: 7, slamDamage: 22,
+    chargeSpeed: 13, chargeDamage: 30,
+    specialCooldown: 3,
+    attackState: 'burst', attackTimer: 0, hasHitThisSwing: false, chargeDir: new THREE.Vector3(),
+    body, head, jaw, armL, armR, legL, legR, eyeL, eyeR,
   };
   return g;
 }
 
-// distance-based melee AI: chase until in range, wind up a telegraphed punch, then swing.
-// onHit() fires once per swing, only if the player is still in range at the moment of impact.
-function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, onHit) {
+// melee/special AI: chase until in punch range, or unleash a telegraphed ice slam (close-medium
+// AOE) or charge (long-range dash). Each hit callback fires once per attack, only if the player
+// is still in range at the moment of impact, and receives a unit direction vector for knockback.
+function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
   const u = yeti.userData;
   if (!u.alive) return;
+  const { onPunchHit, onSlamHit, onChargeHit } = callbacks;
   const toPlayer = new THREE.Vector3().subVectors(playerPos, yeti.position);
   toPlayer.y = 0;
   const dist = toPlayer.length();
   let moving = false;
+  u.specialCooldown = Math.max(0, u.specialCooldown - dt);
 
   if (u.attackState === 'burst') {
     u.attackTimer += dt;
     if (u.attackTimer >= 0.5) { u.attackState = 'chase'; u.attackTimer = 0; }
   } else if (u.attackState === 'chase') {
-    if (dist < 40) {
+    if (dist < 45) {
       yeti.lookAt(playerPos.x, yeti.position.y, playerPos.z);
-      if (dist > u.punchRange * 0.8) {
+      if (dist <= u.punchRange * 0.8) {
+        u.attackState = 'winding'; u.attackTimer = 0; u.hasHitThisSwing = false;
+      } else if (u.specialCooldown <= 0 && dist <= u.slamRange) {
+        u.attackState = 'windSlam'; u.attackTimer = 0; u.specialCooldown = 6 + Math.random() * 2;
+      } else if (u.specialCooldown <= 0 && dist > u.slamRange) {
+        u.attackState = 'windCharge'; u.attackTimer = 0; u.specialCooldown = 7 + Math.random() * 2;
+      } else {
         const dir = toPlayer.normalize();
         yeti.position.x += dir.x * 2.6 * dt;
         yeti.position.z += dir.z * 2.6 * dt;
         yeti.position.y = groundHeightFn(yeti.position.x, yeti.position.z);
         moving = true;
-      } else {
-        u.attackState = 'winding';
-        u.attackTimer = 0;
-        u.hasHitThisSwing = false;
       }
     }
   } else if (u.attackState === 'winding') {
@@ -187,12 +195,55 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, onHit) {
     u.attackTimer += dt;
     if (!u.hasHitThisSwing && u.attackTimer >= 0.08) {
       u.hasHitThisSwing = true;
-      if (yeti.position.distanceTo(playerPos) < u.punchRange) onHit();
+      if (yeti.position.distanceTo(playerPos) < u.punchRange) {
+        onPunchHit(new THREE.Vector3().subVectors(playerPos, yeti.position).setY(0).normalize());
+      }
     }
     if (u.attackTimer >= 0.22) { u.attackState = 'recover'; u.attackTimer = 0; }
   } else if (u.attackState === 'recover') {
     u.attackTimer += dt;
     if (u.attackTimer >= 0.45) { u.attackState = 'chase'; u.attackTimer = 0; }
+
+  // ---- special: ice slam - both fists raised, then a ground-pound AOE shockwave ----
+  } else if (u.attackState === 'windSlam') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.8) { u.attackState = 'slam'; u.attackTimer = 0; u.hasHitThisSwing = false; }
+  } else if (u.attackState === 'slam') {
+    u.attackTimer += dt;
+    if (!u.hasHitThisSwing && u.attackTimer >= 0.1) {
+      u.hasHitThisSwing = true;
+      const d = yeti.position.distanceTo(playerPos);
+      if (d < u.slamRadius) {
+        onSlamHit(new THREE.Vector3().subVectors(playerPos, yeti.position).setY(0).normalize());
+      }
+    }
+    if (u.attackTimer >= 0.3) { u.attackState = 'recoverSlam'; u.attackTimer = 0; }
+  } else if (u.attackState === 'recoverSlam') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.6) { u.attackState = 'chase'; u.attackTimer = 0; }
+
+  // ---- special: charge - a fast telegraphed dash straight at the player's last position ----
+  } else if (u.attackState === 'windCharge') {
+    u.attackTimer += dt;
+    yeti.lookAt(playerPos.x, yeti.position.y, playerPos.z);
+    if (u.attackTimer >= 0.6) {
+      u.attackState = 'charge'; u.attackTimer = 0; u.hasHitThisSwing = false;
+      u.chargeDir.copy(toPlayer).normalize();
+    }
+  } else if (u.attackState === 'charge') {
+    u.attackTimer += dt;
+    yeti.position.x += u.chargeDir.x * u.chargeSpeed * dt;
+    yeti.position.z += u.chargeDir.z * u.chargeSpeed * dt;
+    yeti.position.y = groundHeightFn(yeti.position.x, yeti.position.z);
+    moving = true;
+    if (!u.hasHitThisSwing && yeti.position.distanceTo(playerPos) < u.punchRange * 1.1) {
+      u.hasHitThisSwing = true;
+      onChargeHit(u.chargeDir.clone());
+    }
+    if (u.attackTimer >= 0.6) { u.attackState = 'recoverCharge'; u.attackTimer = 0; }
+  } else if (u.attackState === 'recoverCharge') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.7) { u.attackState = 'chase'; u.attackTimer = 0; }
   }
 
   animateYetiBoss(yeti, dt, moving);
@@ -212,6 +263,7 @@ function animateYetiBoss(yeti, dt, moving) {
     u.armL.shoulder.rotation.x += (-swing * 0.4 - u.armL.shoulder.rotation.x) * Math.min(1, dt * 8);
     u.armR.shoulder.rotation.x += (swing * 0.4 - u.armR.shoulder.rotation.x) * Math.min(1, dt * 8);
     u.armR.elbow.rotation.x += (0 - u.armR.elbow.rotation.x) * Math.min(1, dt * 8);
+    u.body.rotation.x += (0 - u.body.rotation.x) * Math.min(1, dt * 6);
   } else if (u.attackState === 'winding') {
     const t = Math.min(1, u.attackTimer / 0.55);
     u.armR.shoulder.rotation.x = -t * 2.4;
@@ -226,6 +278,37 @@ function animateYetiBoss(yeti, dt, moving) {
     u.armR.shoulder.rotation.x = (1 - t) * 1.0;
     u.armR.elbow.rotation.x = (1 - t) * 0.1;
     u.armL.shoulder.rotation.x = (1 - t) * 0.3;
+
+  } else if (u.attackState === 'windSlam') {
+    const t = Math.min(1, u.attackTimer / 0.8);
+    u.armL.shoulder.rotation.x = -2.6 * t; u.armR.shoulder.rotation.x = -2.6 * t;
+    u.armL.elbow.rotation.x = -0.7 * t; u.armR.elbow.rotation.x = -0.7 * t;
+    u.body.rotation.x = -0.15 * t;
+  } else if (u.attackState === 'slam') {
+    const t = Math.min(1, u.attackTimer / 0.3);
+    u.armL.shoulder.rotation.x = -2.6 + t * 4.0; u.armR.shoulder.rotation.x = -2.6 + t * 4.0;
+    u.armL.elbow.rotation.x = -0.7 + t * 0.8; u.armR.elbow.rotation.x = -0.7 + t * 0.8;
+    u.body.rotation.x = -0.15 + t * 0.4;
+  } else if (u.attackState === 'recoverSlam') {
+    const t = Math.min(1, u.attackTimer / 0.6);
+    u.armL.shoulder.rotation.x = (1 - t) * 1.4; u.armR.shoulder.rotation.x = (1 - t) * 1.4;
+    u.armL.elbow.rotation.x = (1 - t) * 0.1; u.armR.elbow.rotation.x = (1 - t) * 0.1;
+    u.body.rotation.x = (1 - t) * 0.25;
+
+  } else if (u.attackState === 'windCharge') {
+    const t = Math.min(1, u.attackTimer / 0.6);
+    u.body.rotation.x = t * 0.35;
+    u.armL.shoulder.rotation.x = t * 1.1; u.armR.shoulder.rotation.x = t * 1.1;
+  } else if (u.attackState === 'charge') {
+    u.walkT += dt * 14;
+    const swing = Math.sin(u.walkT) * 0.6;
+    u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
+    u.body.rotation.x = 0.35;
+    u.armL.shoulder.rotation.x = 1.1; u.armR.shoulder.rotation.x = 1.1;
+  } else if (u.attackState === 'recoverCharge') {
+    const t = Math.min(1, u.attackTimer / 0.7);
+    u.body.rotation.x = (1 - t) * 0.35;
+    u.armL.shoulder.rotation.x = (1 - t) * 1.1; u.armR.shoulder.rotation.x = (1 - t) * 1.1;
   }
   const flick = 0.7 + Math.sin(performance.now() * 0.006) * 0.3;
   u.eyeL.material.color.setRGB(flick, 0.1, 0.1);

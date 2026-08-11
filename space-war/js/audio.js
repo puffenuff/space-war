@@ -128,6 +128,20 @@ const sfx = {
     tone(90, { type: 'sawtooth', dur: 0.7, vol: 0.2, slideTo: 50, delay: 0.1 });
   },
   yetiPunch() { noiseBurst({ dur: 0.22, decay: 2.4, filterFreq: 800, vol: 0.35 }); tone(80, { type: 'square', dur: 0.15, vol: 0.2, slideTo: 40 }); },
+  yetiSlam() {
+    noiseBurst({ dur: 0.5, decay: 1.6, filterFreq: 400, vol: 0.55 });
+    tone(55, { type: 'sawtooth', dur: 0.55, vol: 0.35, slideTo: 20 });
+    tone(1400, { type: 'triangle', dur: 0.3, vol: 0.14, delay: 0.03 });
+  },
+  yetiCharge() { tone(200, { type: 'sawtooth', dur: 0.55, vol: 0.22, slideTo: 500 }); },
+  yetiChargeHit() {
+    noiseBurst({ dur: 0.3, decay: 2, filterFreq: 700, vol: 0.42 });
+    tone(65, { type: 'square', dur: 0.22, vol: 0.26, slideTo: 30 });
+  },
+  gib() {
+    noiseBurst({ dur: 0.35, decay: 2.2, filterFreq: 1100, vol: 0.4 });
+    tone(180, { type: 'sawtooth', dur: 0.3, vol: 0.2, slideTo: 40 });
+  },
 };
 
 // ---- sustained rocket engine rumble (loops for the whole flight, not just a blip) ----

@@ -41,6 +41,8 @@ let digTarget = null;
 let digProgress = 0;
 let repairHoldProgress = 0;
 
+let deathSequence = null; // non-null while the yeti execution cutscene is playing
+
 const clock = new THREE.Clock();
 let elapsed = 0;
 let saveTimer = 0;
@@ -748,11 +750,13 @@ function updateGroundCombat(dt) {
       return;
     }
     if (e.userData.kind === 'yeti') {
-      updateYetiBoss(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), () => {
-        state.health -= e.userData.punchDamage;
-        ui.updateHealth(state.health, state.maxHealth);
-        sfx.yetiPunch();
-        if (state.health <= 0) respawnPlayer();
+      updateYetiBoss(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), {
+        onPunchHit: (dir) => applyYetiHit(e.userData.punchDamage, dir, e, () => sfx.yetiPunch(), 1.6),
+        onSlamHit: (dir) => {
+          b.explosions.push(createExplosion(b.scene, e.position, 0xbfe8ff, 22));
+          applyYetiHit(e.userData.slamDamage, dir, e, () => sfx.yetiSlam(), 4.5);
+        },
+        onChargeHit: (dir) => applyYetiHit(e.userData.chargeDamage, dir, e, () => sfx.yetiChargeHit(), 6),
       });
     } else {
       updateGroundEnemy(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), (origin, dir) => {
@@ -820,6 +824,95 @@ function respawnPlayer() {
   sfx.knockedOut();
   enterBase();
   ui.showToast('Knocked out! Rescued back to Base.');
+}
+
+// ===================== YETI EXECUTION (special kill animation) =====================
+function applyYetiHit(dmg, dir, e, hitSfx, knockback) {
+  if (deathSequence) return;
+  state.health -= dmg;
+  ui.updateHealth(state.health, state.maxHealth);
+  hitSfx();
+  if (state.health <= 0) {
+    startYetiExecution(e);
+  } else if (dir) {
+    player.mesh.position.x += dir.x * knockback;
+    player.mesh.position.z += dir.z * knockback;
+  }
+}
+
+function startYetiExecution(yeti) {
+  const u = player.mesh.userData;
+  player.disabled = true;
+  ui.hideInteractPrompt();
+  const headWorldPos = new THREE.Vector3();
+  u.head.getWorldPosition(headWorldPos);
+  const headClone = u.head.clone();
+  headClone.position.copy(headWorldPos);
+  headClone.rotation.copy(player.mesh.rotation);
+  activeScene.add(headClone);
+  u.head.visible = false;
+  deathSequence = { timer: 0, phase: 'grab', yeti, headClone };
+  sfx.yetiRoar();
+}
+
+function updateYetiExecution(dt) {
+  const ds = deathSequence;
+  const yeti = ds.yeti;
+  ds.timer += dt;
+  const facing = new THREE.Vector3().subVectors(player.mesh.position, yeti.position).setY(0).normalize();
+  const grabSpot = new THREE.Vector3(yeti.position.x + facing.x * 1.6, yeti.position.y, yeti.position.z + facing.z * 1.6);
+
+  if (ds.phase === 'grab') {
+    const t = Math.min(1, ds.timer / 0.5);
+    const groundY = getGroundHeightCurrent(player.mesh.position.x, player.mesh.position.z);
+    player.mesh.position.lerp(grabSpot, 0.12);
+    player.mesh.position.y = groundY + Math.sin(t * Math.PI) * 0.5;
+    player.heading = Math.atan2(-facing.x, -facing.z);
+    player.mesh.rotation.y = player.heading;
+    ds.headClone.position.copy(player.mesh.position).add(new THREE.Vector3(0, 1.68, 0));
+    if (yeti.userData.jaw) yeti.userData.jaw.rotation.x = -0.3 * t;
+    if (ds.timer >= 0.5) { ds.phase = 'bite'; ds.timer = 0; }
+  } else if (ds.phase === 'bite') {
+    const t = Math.min(1, ds.timer / 0.35);
+    if (yeti.userData.jaw) yeti.userData.jaw.rotation.x = -0.3 + Math.sin(t * Math.PI) * 0.9;
+    if (!ds.ripped) {
+      ds.headClone.position.copy(player.mesh.position).add(new THREE.Vector3(0, 1.68, 0));
+    }
+    if (ds.timer >= 0.12 && !ds.ripped) {
+      ds.ripped = true;
+      activeBuild.explosions.push(createExplosion(activeScene, ds.headClone.position, 0xff2020, 26));
+      sfx.gib();
+      ds.headVel = new THREE.Vector3((Math.random() - 0.5) * 2, 5 + Math.random() * 2, (Math.random() - 0.5) * 2);
+    }
+    if (ds.ripped) {
+      ds.headVel.y -= 14 * dt;
+      ds.headClone.position.addScaledVector(ds.headVel, dt);
+      ds.headClone.rotation.x += dt * 6;
+      ds.headClone.rotation.z += dt * 4;
+    }
+    if (ds.timer >= 0.35) { ds.phase = 'toss'; ds.timer = 0; }
+  } else if (ds.phase === 'toss') {
+    ds.headVel.y -= 14 * dt;
+    ds.headClone.position.addScaledVector(ds.headVel, dt);
+    ds.headClone.rotation.x += dt * 6;
+    ds.headClone.rotation.z += dt * 4;
+    player.mesh.rotation.z += (Math.PI / 2 - player.mesh.rotation.z) * Math.min(1, dt * 3);
+    if (ds.timer >= 1.1) { finishYetiExecution(); }
+  }
+}
+
+function finishYetiExecution() {
+  const ds = deathSequence;
+  if (ds.headClone.parent) ds.headClone.parent.remove(ds.headClone);
+  const u = player.mesh.userData;
+  u.head.visible = true;
+  player.mesh.rotation.set(0, player.heading, 0);
+  player.disabled = false;
+  deathSequence = null;
+  state.coins = Math.max(0, Math.floor(state.coins * 0.85));
+  state.health = Math.floor(state.maxHealth * 0.5);
+  enterBase();
+  ui.showBigMessage('DECAPITATED!', 'The yeti tore Billy Bob apart. Rescued back to Base.', 3200);
 }
 
 // ===================== SECRET AMBUSH VAULT =====================
@@ -934,7 +1027,9 @@ function tick() {
     updateThirdPersonCamera(camera, player.mesh.position, dt);
   }
 
-  if (!ui.isPanelOpen()) {
+  if (deathSequence) updateYetiExecution(dt);
+
+  if (!ui.isPanelOpen() && !deathSequence) {
     const nearest = findNearestInteractable();
     if (nearest) {
       const consumedHold = mode === 'planet' ? handleHold(nearest, dt) : false;
