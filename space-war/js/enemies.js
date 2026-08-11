@@ -1,39 +1,48 @@
 
-// ===================== GROUND RAIDER =====================
-function createGroundEnemy(spawn) {
+// ===================== GROUND RAIDER (or icy "mini yeti" skin on Cryovale) =====================
+function createGroundEnemy(spawn, skin = 'raider') {
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x7a3030, roughness: 0.65, metalness: 0.2 });
-  const armorMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.5, metalness: 0.4 });
+  const isYeti = skin === 'miniYeti';
+  const bodyMat = new THREE.MeshStandardMaterial({ color: isYeti ? 0xeaf6ff : 0x7a3030, roughness: isYeti ? 0.85 : 0.65, metalness: isYeti ? 0 : 0.2 });
+  const armorMat = new THREE.MeshStandardMaterial({ color: isYeti ? 0xb9d4e6 : 0x2b2b2b, roughness: isYeti ? 0.8 : 0.5, metalness: isYeti ? 0 : 0.4 });
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.78, 0.38), bodyMat);
   body.position.y = 1.02;
   body.castShadow = true;
   g.add(body);
 
-  // shoulder armor plates
+  // shoulder armor plates (fur tufts on the yeti skin)
   const padGeo = new THREE.BoxGeometry(0.26, 0.2, 0.32);
   const padL = new THREE.Mesh(padGeo, armorMat); padL.position.set(-0.32, 1.38, 0);
   const padR = new THREE.Mesh(padGeo, armorMat); padR.position.set(0.32, 1.38, 0);
   g.add(padL, padR);
 
-  // angular helmet with glowing visor slit
-  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.34, 0.36), armorMat);
+  // angular helmet with glowing visor slit; the yeti skin gets a fur-colored head + small tusks instead of a helmet spike
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.34, 0.36), isYeti ? bodyMat : armorMat);
   head.position.y = 1.62;
   head.castShadow = true;
   g.add(head);
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.07, 0.04), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
   visor.position.set(0, 1.63, 0.19);
   g.add(visor);
-  const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 5), armorMat);
-  spike.position.set(0, 1.86, -0.05);
-  g.add(spike);
+  if (isYeti) {
+    const tuskGeo = new THREE.ConeGeometry(0.035, 0.16, 6);
+    const tuskMat = new THREE.MeshStandardMaterial({ color: 0xf2f8ff, roughness: 0.4 });
+    const tuskL = new THREE.Mesh(tuskGeo, tuskMat); tuskL.position.set(-0.09, 1.52, 0.2); tuskL.rotation.x = Math.PI;
+    const tuskR = new THREE.Mesh(tuskGeo, tuskMat); tuskR.position.set(0.09, 1.52, 0.2); tuskR.rotation.x = Math.PI;
+    g.add(tuskL, tuskR);
+  } else {
+    const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.22, 5), armorMat);
+    spike.position.set(0, 1.86, -0.05);
+    g.add(spike);
+  }
 
   // arms, gun held by the right hand
   const armGeo = new THREE.BoxGeometry(0.18, 0.55, 0.2);
   const armL = new THREE.Mesh(armGeo, bodyMat); armL.geometry.translate(0, -0.275, 0); armL.position.set(-0.36, 1.35, 0);
   const armR = new THREE.Mesh(armGeo, bodyMat); armR.geometry.translate(0, -0.275, 0); armR.position.set(0.36, 1.35, 0);
   g.add(armL, armR);
-  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.5), new THREE.MeshStandardMaterial({ color: 0x1c1c1c }));
+  const gun = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.5), new THREE.MeshStandardMaterial({ color: isYeti ? 0x8fa5b5 : 0x1c1c1c, metalness: isYeti ? 0.3 : 0.5 }));
   gun.position.set(0.14, -0.42, 0.2);
   armR.add(gun);
 
@@ -42,11 +51,14 @@ function createGroundEnemy(spawn) {
   const legR = new THREE.Mesh(legGeo, armorMat); legR.geometry.translate(0, -0.3, 0); legR.position.set(0.16, 0.6, 0);
   g.add(legL, legR);
 
+  if (isYeti) g.scale.set(1.2, 1.2, 1.2); // stockier than a regular raider, still dwarfed by the boss
+
   g.position.set(spawn.x, spawn.y, spawn.z);
   g.userData = {
-    isEnemy: true, kind: 'ground', hp: 30, maxHp: 30,
+    isEnemy: true, kind: 'ground', hp: isYeti ? 42 : 30, maxHp: isYeti ? 42 : 30,
     home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
     shootCooldown: 1 + Math.random(), wanderT: Math.random() * 10, wanderTarget: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
+    hitRadius: isYeti ? 1.8 : 1.5,
     gun, visor, armL, armR, legL, legR, walkT: Math.random() * 10, alive: true,
   };
   return g;
@@ -142,14 +154,14 @@ function createYetiBoss(spawn) {
 
   g.position.set(spawn.x, spawn.y, spawn.z);
   g.userData = {
-    isEnemy: true, kind: 'yeti', hp: 380, maxHp: 380,
+    isEnemy: true, kind: 'yeti', hp: 650, maxHp: 650,
     home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
     walkT: Math.random() * 10, alive: true,
-    hitRadius: 3.4, punchDamage: 30, punchRange: 4.0,
-    slamRange: 12, slamRadius: 8, slamDamage: 30,
-    chargeSpeed: 16, chargeDamage: 38,
-    chaseSpeed: 3.6,
-    specialCooldown: 2,
+    hitRadius: 3.4, punchDamage: 40, punchRange: 4.4,
+    slamRange: 13, slamRadius: 9, slamDamage: 42,
+    chargeSpeed: 19, chargeDamage: 55,
+    chaseSpeed: 4.6,
+    specialCooldown: 1,
     attackState: 'burst', attackTimer: 0, hasHitThisSwing: false, chargeDir: new THREE.Vector3(),
     body, head, jaw, armL, armR, legL, legR, eyeL, eyeR,
   };
@@ -178,9 +190,9 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
       if (dist <= u.punchRange * 0.8) {
         u.attackState = 'winding'; u.attackTimer = 0; u.hasHitThisSwing = false;
       } else if (u.specialCooldown <= 0 && dist <= u.slamRange) {
-        u.attackState = 'windSlam'; u.attackTimer = 0; u.specialCooldown = 4 + Math.random() * 1.5;
+        u.attackState = 'windSlam'; u.attackTimer = 0; u.specialCooldown = 2.5 + Math.random();
       } else if (u.specialCooldown <= 0 && dist > u.slamRange) {
-        u.attackState = 'windCharge'; u.attackTimer = 0; u.specialCooldown = 5 + Math.random() * 1.5;
+        u.attackState = 'windCharge'; u.attackTimer = 0; u.specialCooldown = 3 + Math.random();
       } else {
         const dir = toPlayer.normalize();
         yeti.position.x += dir.x * u.chaseSpeed * dt;
@@ -203,7 +215,7 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
     if (u.attackTimer >= 0.22) { u.attackState = 'recover'; u.attackTimer = 0; }
   } else if (u.attackState === 'recover') {
     u.attackTimer += dt;
-    if (u.attackTimer >= 0.3) { u.attackState = 'chase'; u.attackTimer = 0; }
+    if (u.attackTimer >= 0.18) { u.attackState = 'chase'; u.attackTimer = 0; }
 
   // ---- special: ice slam - both fists raised, then a ground-pound AOE shockwave ----
   } else if (u.attackState === 'windSlam') {
@@ -221,7 +233,7 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
     if (u.attackTimer >= 0.3) { u.attackState = 'recoverSlam'; u.attackTimer = 0; }
   } else if (u.attackState === 'recoverSlam') {
     u.attackTimer += dt;
-    if (u.attackTimer >= 0.4) { u.attackState = 'chase'; u.attackTimer = 0; }
+    if (u.attackTimer >= 0.25) { u.attackState = 'chase'; u.attackTimer = 0; }
 
   // ---- special: charge - a fast telegraphed dash straight at the player's last position ----
   } else if (u.attackState === 'windCharge') {
@@ -244,7 +256,7 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
     if (u.attackTimer >= 0.6) { u.attackState = 'recoverCharge'; u.attackTimer = 0; }
   } else if (u.attackState === 'recoverCharge') {
     u.attackTimer += dt;
-    if (u.attackTimer >= 0.5) { u.attackState = 'chase'; u.attackTimer = 0; }
+    if (u.attackTimer >= 0.3) { u.attackState = 'chase'; u.attackTimer = 0; }
   }
 
   animateYetiBoss(yeti, dt, moving);

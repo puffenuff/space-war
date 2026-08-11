@@ -121,12 +121,12 @@ function ensurePlanetBuild(id) {
   build.vehicle = createVehicle(build.planet.vehicleType || 'rover', build.wreckPos, state.planets[id].vehicleRepaired);
   build.scene.add(build.vehicle);
   build.enemySpawns.forEach((spawn) => {
-    const e = createGroundEnemy(spawn);
+    const e = createGroundEnemy(spawn, build.planet.enemySkin);
     build.scene.add(e);
     build.enemies.push(e);
   });
   (build.caveEnemySpawns || []).forEach((spawn) => {
-    const e = createGroundEnemy(spawn);
+    const e = createGroundEnemy(spawn, build.planet.enemySkin);
     build.scene.add(e);
     build.enemies.push(e);
   });
@@ -938,8 +938,9 @@ function triggerSecretRoom(b, sr) {
   sr.doorMesh.userData.state = 'closed';
   sr.remaining = sr.enemySpawns.length;
   sr.activeEnemies = sr.enemySpawns.map((spawn) => {
-    const e = createGroundEnemy(spawn);
-    e.userData.hp = 22; e.userData.maxHp = 22;
+    const e = createGroundEnemy(spawn, b.planet.enemySkin);
+    const vaultHp = b.planet.enemySkin === 'miniYeti' ? 31 : 22;
+    e.userData.hp = vaultHp; e.userData.maxHp = vaultHp;
     e.userData.secretRoom = true;
     e.userData.noRespawn = true;
     b.scene.add(e);

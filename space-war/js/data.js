@@ -16,9 +16,10 @@ const PLANETS = {
     name: 'Cryovale', theme: 'ice',
     ground: 0xbfe6f5, ground2: 0x89c3dd, sky: 0xdfefff, fog: 0xaad0e6,
     size: 600, hills: 12, craters: 4,
-    enemyCount: 7, dugSites: 4, wreckPos: [-75, 0, 60], vehicleType: 'crawler',
+    enemyCount: 14, dugSites: 4, wreckPos: [-75, 0, 60], vehicleType: 'crawler',
     partSpots: { fins: [-105, 0, -105] }, outfitColor: 0x9fe0f0, caveRadius: 270,
-    secretRoom: true, secretRoomEnemyCount: 5, secretRoomBoss: 'yeti',
+    secretRoom: true, secretRoomEnemyCount: 10, secretRoomBoss: 'yeti',
+    enemySkin: 'miniYeti',
   },
   3: {
     name: 'Emberfall', theme: 'volcanic',
