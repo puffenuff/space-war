@@ -957,13 +957,14 @@ function buildPlanetScene(planetId) {
   // ---- secret ambush vault: hidden room reached via a marked trail, seals shut on entry ----
   let secretRoom = null;
   if (planet.secretRoom) {
+    const hasBoss = !!planet.secretRoomBoss;
     const corridorWidth = 5;
     const corridorHeight = 6.4;
     const trailStartZ = -caveRadius * 0.62;
     const corridorStartZ = -caveRadius * 0.95;
     const corridorLength = 30;
     const corridorEndZ = corridorStartZ - corridorLength;
-    const roomRadius = 22;
+    const roomRadius = hasBoss ? 36 : 22; // extra-large room when a boss needs room to loom
     const roomHeight = Math.min(caveHeight, 16);
     const roomCenterZ = corridorEndZ - roomRadius - 4;
     const doorZ = corridorEndZ;
@@ -1024,6 +1025,24 @@ function buildPlanetScene(planetId) {
     roomLight.position.set(0, roomHeight * 0.6, roomCenterZ);
     caveGroup.add(roomLight);
 
+    // boss wall: an icy slab flush with the far wall (opposite the corridor entrance) that
+    // looks like solid rock until game.js triggers the burst - the boss then appears at
+    // bossSpawnLocal, just in front of where the wall used to be
+    let bossWallPanel = null, bossSpawnLocal = null;
+    if (hasBoss) {
+      const bossAngle = -Math.PI / 2; // straight back from the room center, away from the door
+      const wallX = Math.cos(bossAngle) * roomRadius;
+      const wallZ = roomCenterZ + Math.sin(bossAngle) * roomRadius;
+      const panelMat = new THREE.MeshStandardMaterial({ color: 0xcfeaff, emissive: 0x2a5a7a, emissiveIntensity: 0.25, metalness: 0.15, roughness: 0.35 });
+      bossWallPanel = new THREE.Mesh(new THREE.BoxGeometry(10, 9, 1.4), panelMat);
+      bossWallPanel.position.set(wallX, 4.0, wallZ + 0.4);
+      caveGroup.add(bossWallPanel);
+      const panelLight = new THREE.PointLight(0x8fd8ff, 0.7, 14);
+      panelLight.position.set(wallX, 4.5, wallZ + 2);
+      caveGroup.add(panelLight);
+      bossSpawnLocal = { x: wallX, y: 0, z: wallZ + 3.5 };
+    }
+
     // blast door: normally retracted below the floor, rises to seal the corridor once triggered
     const doorClosedY = corridorHeight / 2 - 0.5;
     const doorOpenY = -corridorHeight - 1;
@@ -1045,26 +1064,47 @@ function buildPlanetScene(planetId) {
     prizeGlow.position.set(0, 1.2, roomCenterZ);
     caveGroup.add(prizeGlow);
 
-    // 15 ambush spawn points ringed around the room (world positions; game.js instantiates the enemies on trigger)
+    // ambush spawn points ringed around the room (world positions; game.js instantiates the
+    // enemies on trigger). Small squads get one ring; bigger swarms (like Rustholm's 15) split
+    // into an outer and inner ring so they don't overlap.
     const enemySpawns = [];
-    const ambushCount = 15;
-    for (let i = 0; i < ambushCount; i++) {
-      const ring = i < 8 ? 0 : 1;
-      const idxInRing = ring === 0 ? i : i - 8;
-      const ringCount = ring === 0 ? 8 : 7;
-      const a = (idxInRing / ringCount) * Math.PI * 2 + ring * 0.35;
-      const r = roomRadius * (ring === 0 ? 0.65 : 0.32);
-      enemySpawns.push({
-        x: caveOrigin.x + Math.cos(a) * r,
-        y: caveOrigin.y,
-        z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
-      });
+    const ambushCount = planet.secretRoomEnemyCount || 15;
+    const outerRingCount = 8;
+    if (ambushCount <= 6) {
+      for (let i = 0; i < ambushCount; i++) {
+        const a = (i / ambushCount) * Math.PI * 2 + 0.4;
+        const r = roomRadius * 0.5;
+        enemySpawns.push({
+          x: caveOrigin.x + Math.cos(a) * r,
+          y: caveOrigin.y,
+          z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
+        });
+      }
+    } else {
+      for (let i = 0; i < ambushCount; i++) {
+        const ring = i < outerRingCount ? 0 : 1;
+        const idxInRing = ring === 0 ? i : i - outerRingCount;
+        const ringCount = ring === 0 ? outerRingCount : (ambushCount - outerRingCount);
+        const a = (idxInRing / ringCount) * Math.PI * 2 + ring * 0.35;
+        const r = roomRadius * (ring === 0 ? 0.65 : 0.32);
+        enemySpawns.push({
+          x: caveOrigin.x + Math.cos(a) * r,
+          y: caveOrigin.y,
+          z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
+        });
+      }
     }
 
     secretRoom = {
       doorMesh, doorStripe, prizeCrate, prizeGlow,
       roomCenter: { x: 0, z: roomCenterZ }, roomRadius,
       enemySpawns,
+      boss: hasBoss ? {
+        type: planet.secretRoomBoss,
+        wallPanel: bossWallPanel,
+        spawnPos: { x: caveOrigin.x + bossSpawnLocal.x, y: caveOrigin.y, z: caveOrigin.z + bossSpawnLocal.z },
+        triggered: false,
+      } : null,
       triggered: false, resolved: false, remaining: 0, activeEnemies: [],
     };
   }

@@ -36,6 +36,11 @@ html, body { width:100%; height:100%; overflow:hidden; background:#000; font-fam
 #mission-tracker .m-title { color:#ffd35e; font-weight:700; }
 #mission-tracker .m-done { color:#7fff9e; text-decoration:line-through; opacity:0.6; }
 
+#boss-health-wrap { position:absolute; top:14px; left:50%; transform:translateX(-50%); width:min(70vw,420px); text-align:center; }
+#boss-name { color:#bfe8ff; font-weight:900; letter-spacing:3px; font-size:14px; text-shadow:0 1px 4px #000; margin-bottom:4px; }
+#boss-health-bar-outer { width:100%; height:16px; background:#1119; border:2px solid #6fb8e0; border-radius:6px; overflow:hidden; }
+#boss-health-bar { height:100%; width:100%; background:linear-gradient(90deg,#3ba0ff,#8fe0ff); transition:width 0.25s; }
+
 #interact-prompt { position:absolute; bottom:34%; left:50%; transform:translateX(-50%); background:#000c; border:1px solid #5ef; color:#eaffff; padding:8px 16px; border-radius:8px; font-size:14px; font-weight:600; }
 #pickup-toast { position:absolute; top:120px; left:50%; transform:translateX(-50%); background:#0a0; color:#fff; padding:6px 14px; border-radius:20px; font-weight:700; font-size:13px; animation:toastPop 1.4s ease forwards; }
 @keyframes toastPop { 0%{opacity:0; transform:translate(-50%,10px) scale(0.8);} 15%{opacity:1; transform:translate(-50%,0) scale(1);} 80%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-16px) scale(0.9);} }

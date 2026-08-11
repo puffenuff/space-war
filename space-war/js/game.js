@@ -148,6 +148,7 @@ function ensurePlanetBuild(id) {
     sr.triggered = true; sr.resolved = true;
     sr.doorMesh.userData.state = 'open';
     sr.doorMesh.position.y = sr.doorMesh.userData.openY;
+    if (sr.boss) { sr.boss.triggered = true; sr.boss.wallPanel.visible = false; }
   }
   planetBuilds[id] = build;
   return build;
@@ -746,12 +747,21 @@ function updateGroundCombat(dt) {
       }
       return;
     }
-    updateGroundEnemy(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), (origin, dir) => {
-      const p = createProjectile(origin, dir, { color: 0xff5050, speed: 20, damage: 8, owner: 'enemy', life: 2.5 });
-      b.scene.add(p);
-      b.enemyProjectiles.push(p);
-      sfx.enemyShoot();
-    });
+    if (e.userData.kind === 'yeti') {
+      updateYetiBoss(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), () => {
+        state.health -= e.userData.punchDamage;
+        ui.updateHealth(state.health, state.maxHealth);
+        sfx.yetiPunch();
+        if (state.health <= 0) respawnPlayer();
+      });
+    } else {
+      updateGroundEnemy(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), (origin, dir) => {
+        const p = createProjectile(origin, dir, { color: 0xff5050, speed: 20, damage: 8, owner: 'enemy', life: 2.5 });
+        b.scene.add(p);
+        b.enemyProjectiles.push(p);
+        sfx.enemyShoot();
+      });
+    }
   });
 
   updateProjectiles(b.projectiles, dt, b.scene);
@@ -763,24 +773,25 @@ function updateGroundCombat(dt) {
     let hit = false;
     for (const e of b.enemies) {
       if (!e.userData.alive) continue;
-      if (p.position.distanceTo(e.position) < 1.5) {
+      if (p.position.distanceTo(e.position) < (e.userData.hitRadius || 1.5)) {
         e.userData.hp -= p.userData.damage;
         b.scene.remove(p); b.projectiles.splice(i, 1); hit = true;
         if (e.userData.hp <= 0) {
+          const isYeti = e.userData.kind === 'yeti';
           e.userData.alive = false;
           if (!e.userData.noRespawn) e.userData.respawnAt = elapsed + 25;
-          b.explosions.push(createExplosion(b.scene, e.position, 0xffaa33));
+          b.explosions.push(createExplosion(b.scene, e.position, isYeti ? 0xbfe8ff : 0xffaa33, isYeti ? 30 : 16));
           b.scene.remove(e);
-          const coinGain = 8 + Math.floor(Math.random() * 10);
+          const coinGain = isYeti ? (60 + Math.floor(Math.random() * 40)) : (8 + Math.floor(Math.random() * 10));
           state.coins += coinGain;
           sfx.explosion();
           progressKill(currentPlanetId, missionToast);
           if (e.userData.secretRoom && b.secretRoom) {
             b.secretRoom.remaining -= 1;
-            ui.showToast(`Raider down! +${coinGain} Coins (${b.secretRoom.remaining} left)`);
+            ui.showToast(`${isYeti ? 'YETI DEFEATED!' : 'Raider down!'} +${coinGain} Coins (${b.secretRoom.remaining} left)`);
             if (b.secretRoom.remaining <= 0) resolveSecretRoom(b);
           } else {
-            ui.showToast(`Raider down! +${coinGain} Coins`);
+            ui.showToast(`${isYeti ? 'YETI DEFEATED!' : 'Raider down!'} +${coinGain} Coins`);
           }
         } else {
           sfx.hit();
@@ -816,12 +827,16 @@ function updateSecretRoom() {
   if (mode !== 'planet' || !inCave) return;
   const b = activeBuild;
   const sr = b.secretRoom;
-  if (!sr || sr.triggered || sr.resolved) return;
-  const pPos = player.mesh.position;
-  const dx = (pPos.x - b.caveOrigin.x) - sr.roomCenter.x;
-  const dz = (pPos.z - b.caveOrigin.z) - sr.roomCenter.z;
-  if (Math.hypot(dx, dz) < sr.roomRadius * 0.92) {
-    triggerSecretRoom(b, sr);
+  if (!sr || sr.resolved) return;
+  if (!sr.triggered) {
+    const pPos = player.mesh.position;
+    const dx = (pPos.x - b.caveOrigin.x) - sr.roomCenter.x;
+    const dz = (pPos.z - b.caveOrigin.z) - sr.roomCenter.z;
+    if (Math.hypot(dx, dz) < sr.roomRadius * 0.92) triggerSecretRoom(b, sr);
+    return;
+  }
+  if (sr.boss && !sr.boss.triggered && elapsed >= sr.boss.burstAt) {
+    burstYetiWall(b, sr);
   }
 }
 
@@ -839,7 +854,29 @@ function triggerSecretRoom(b, sr) {
     return e;
   });
   sfx.denied();
-  ui.showBigMessage('AMBUSH!', 'The vault door seals shut behind you. Clear them all!', 2800);
+  if (sr.boss) {
+    sr.boss.burstAt = elapsed + 1.4;
+    ui.showBigMessage('AMBUSH!', 'The vault door seals shut behind you...', 1600);
+  } else {
+    ui.showBigMessage('AMBUSH!', 'The vault door seals shut behind you. Clear them all!', 2800);
+  }
+}
+
+function burstYetiWall(b, sr) {
+  const boss = sr.boss;
+  boss.triggered = true;
+  boss.wallPanel.visible = false;
+  b.explosions.push(createExplosion(b.scene, boss.wallPanel.position, 0xbfe8ff, 26));
+  sfx.wallSmash();
+  sfx.yetiRoar();
+  const yeti = createYetiBoss(boss.spawnPos);
+  yeti.userData.secretRoom = true;
+  yeti.userData.noRespawn = true;
+  b.scene.add(yeti);
+  b.enemies.push(yeti);
+  boss.enemyRef = yeti;
+  sr.remaining += 1;
+  ui.showBigMessage('A YETI BURSTS THROUGH THE WALL!', 'Watch out for its fists!', 2600);
 }
 
 function resolveSecretRoom(b) {
@@ -929,6 +966,13 @@ function tick() {
   const showCombatHud = mode === 'planet' && !drivingVehicle && !ui.isPanelOpen();
   ui.showCrosshair(showCombatHud);
   ui.updateAmmo(showCombatHud, player.ammo, player.weaponStats.magSize, player.reloading);
+  const bossEnemy = mode === 'planet' && inCave && activeBuild.secretRoom && activeBuild.secretRoom.boss
+    ? activeBuild.secretRoom.boss.enemyRef : null;
+  if (bossEnemy && bossEnemy.userData.alive) {
+    ui.showBossHealth(true, 'YETI', bossEnemy.userData.hp, bossEnemy.userData.maxHp);
+  } else {
+    ui.showBossHealth(false);
+  }
 
   saveTimer += dt;
   if (saveTimer > 12) { saveTimer = 0; saveGame(); }

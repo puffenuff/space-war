@@ -63,6 +63,175 @@ function animateGroundEnemy(enemy, dt, moving, t) {
   u.visor.material.color.setRGB(flick, 0.15, 0.15);
 }
 
+// ===================== YETI BOSS (melee, secret-vault only) =====================
+function createYetiBoss(spawn) {
+  const g = new THREE.Group();
+  const furMat = new THREE.MeshStandardMaterial({ color: 0xeaf6ff, roughness: 0.9 });
+  const furMatDark = new THREE.MeshStandardMaterial({ color: 0xb9d4e6, roughness: 0.9 });
+  const faceMat = new THREE.MeshStandardMaterial({ color: 0x2a3540, roughness: 0.6 });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff3b3b });
+  const clawMat = new THREE.MeshStandardMaterial({ color: 0xf2f8ff, roughness: 0.4, metalness: 0.2 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.6, 1.5), furMat);
+  body.position.y = 2.6;
+  body.castShadow = true;
+  g.add(body);
+  const chestTuft = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.6), furMatDark);
+  chestTuft.position.set(0, 3.0, 0.75);
+  g.add(chestTuft);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.0, 1.0), furMat);
+  head.position.set(0, 4.35, 0.15);
+  head.castShadow = true;
+  g.add(head);
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.22, 0.3), furMatDark);
+  brow.position.set(0, 4.68, 0.62);
+  brow.rotation.x = -0.2;
+  g.add(brow);
+  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.4, 0.5), faceMat);
+  jaw.position.set(0, 3.95, 0.55);
+  g.add(jaw);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), eyeMat); eyeL.position.set(-0.28, 4.42, 0.62);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 8), eyeMat); eyeR.position.set(0.28, 4.42, 0.62);
+  g.add(eyeL, eyeR);
+  const tuskGeo = new THREE.ConeGeometry(0.06, 0.32, 6);
+  const tuskL = new THREE.Mesh(tuskGeo, clawMat); tuskL.position.set(-0.18, 3.78, 0.72); tuskL.rotation.x = Math.PI;
+  const tuskR = new THREE.Mesh(tuskGeo, clawMat); tuskR.position.set(0.18, 3.78, 0.72); tuskR.rotation.x = Math.PI;
+  g.add(tuskL, tuskR);
+
+  // arms are jointed (shoulder -> elbow -> fist) so the punch animation can actually bend
+  const upperArmGeo = new THREE.BoxGeometry(0.65, 1.5, 0.65);
+  const foreArmGeo = new THREE.BoxGeometry(0.6, 1.3, 0.6);
+  const fistGeo = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+  function buildArm(sign) {
+    const shoulder = new THREE.Group();
+    shoulder.position.set(sign * 1.35, 3.55, 0.1);
+    const upper = new THREE.Mesh(upperArmGeo, furMat);
+    upper.position.y = -0.7;
+    upper.castShadow = true;
+    shoulder.add(upper);
+    const elbow = new THREE.Group();
+    elbow.position.set(0, -1.5, 0);
+    const fore = new THREE.Mesh(foreArmGeo, furMatDark);
+    fore.position.y = -0.6;
+    fore.castShadow = true;
+    elbow.add(fore);
+    const fist = new THREE.Mesh(fistGeo, clawMat);
+    fist.position.y = -1.35;
+    fist.castShadow = true;
+    elbow.add(fist);
+    shoulder.add(elbow);
+    return { shoulder, elbow, fist };
+  }
+  const armL = buildArm(-1);
+  const armR = buildArm(1);
+  g.add(armL.shoulder, armR.shoulder);
+
+  const legGeo = new THREE.BoxGeometry(0.85, 1.3, 0.85);
+  const legL = new THREE.Mesh(legGeo, furMatDark); legL.geometry.translate(0, -0.65, 0); legL.position.set(-0.6, 1.3, 0);
+  const legR = new THREE.Mesh(legGeo, furMatDark); legR.geometry.translate(0, -0.65, 0); legR.position.set(0.6, 1.3, 0);
+  legL.castShadow = true; legR.castShadow = true;
+  g.add(legL, legR);
+
+  const spikeGeo = new THREE.ConeGeometry(0.12, 0.5, 5);
+  [[-1.1, 3.9, -0.2], [1.1, 3.9, -0.2], [-0.5, 4.9, -0.1], [0.5, 4.9, -0.1]].forEach(([sx, sy, sz]) => {
+    const spike = new THREE.Mesh(spikeGeo, clawMat);
+    spike.position.set(sx, sy, sz);
+    g.add(spike);
+  });
+
+  g.position.set(spawn.x, spawn.y, spawn.z);
+  g.userData = {
+    isEnemy: true, kind: 'yeti', hp: 200, maxHp: 200,
+    home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
+    walkT: Math.random() * 10, alive: true,
+    hitRadius: 3.4, punchDamage: 24, punchRange: 3.6,
+    attackState: 'burst', attackTimer: 0, hasHitThisSwing: false,
+    armL, armR, legL, legR, eyeL, eyeR,
+  };
+  return g;
+}
+
+// distance-based melee AI: chase until in range, wind up a telegraphed punch, then swing.
+// onHit() fires once per swing, only if the player is still in range at the moment of impact.
+function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, onHit) {
+  const u = yeti.userData;
+  if (!u.alive) return;
+  const toPlayer = new THREE.Vector3().subVectors(playerPos, yeti.position);
+  toPlayer.y = 0;
+  const dist = toPlayer.length();
+  let moving = false;
+
+  if (u.attackState === 'burst') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.5) { u.attackState = 'chase'; u.attackTimer = 0; }
+  } else if (u.attackState === 'chase') {
+    if (dist < 40) {
+      yeti.lookAt(playerPos.x, yeti.position.y, playerPos.z);
+      if (dist > u.punchRange * 0.8) {
+        const dir = toPlayer.normalize();
+        yeti.position.x += dir.x * 2.6 * dt;
+        yeti.position.z += dir.z * 2.6 * dt;
+        yeti.position.y = groundHeightFn(yeti.position.x, yeti.position.z);
+        moving = true;
+      } else {
+        u.attackState = 'winding';
+        u.attackTimer = 0;
+        u.hasHitThisSwing = false;
+      }
+    }
+  } else if (u.attackState === 'winding') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.55) { u.attackState = 'punching'; u.attackTimer = 0; }
+  } else if (u.attackState === 'punching') {
+    u.attackTimer += dt;
+    if (!u.hasHitThisSwing && u.attackTimer >= 0.08) {
+      u.hasHitThisSwing = true;
+      if (yeti.position.distanceTo(playerPos) < u.punchRange) onHit();
+    }
+    if (u.attackTimer >= 0.22) { u.attackState = 'recover'; u.attackTimer = 0; }
+  } else if (u.attackState === 'recover') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.45) { u.attackState = 'chase'; u.attackTimer = 0; }
+  }
+
+  animateYetiBoss(yeti, dt, moving);
+}
+
+function animateYetiBoss(yeti, dt, moving) {
+  const u = yeti.userData;
+  if (u.attackState === 'burst') {
+    const t = Math.min(1, u.attackTimer / 0.5);
+    u.armL.shoulder.rotation.x = -2.0 * (1 - t * 0.6);
+    u.armR.shoulder.rotation.x = -2.0 * (1 - t * 0.6);
+  } else if (u.attackState === 'chase') {
+    u.walkT += dt * (moving ? 5 : 1.5);
+    const swing = moving ? Math.sin(u.walkT) * 0.5 : 0;
+    u.legL.rotation.x = swing;
+    u.legR.rotation.x = -swing;
+    u.armL.shoulder.rotation.x += (-swing * 0.4 - u.armL.shoulder.rotation.x) * Math.min(1, dt * 8);
+    u.armR.shoulder.rotation.x += (swing * 0.4 - u.armR.shoulder.rotation.x) * Math.min(1, dt * 8);
+    u.armR.elbow.rotation.x += (0 - u.armR.elbow.rotation.x) * Math.min(1, dt * 8);
+  } else if (u.attackState === 'winding') {
+    const t = Math.min(1, u.attackTimer / 0.55);
+    u.armR.shoulder.rotation.x = -t * 2.4;
+    u.armR.elbow.rotation.x = -t * 0.8;
+    u.armL.shoulder.rotation.x = t * 0.3;
+  } else if (u.attackState === 'punching') {
+    const t = Math.min(1, u.attackTimer / 0.22);
+    u.armR.shoulder.rotation.x = -2.4 + t * 3.4;
+    u.armR.elbow.rotation.x = -0.8 + t * 0.9;
+  } else if (u.attackState === 'recover') {
+    const t = Math.min(1, u.attackTimer / 0.45);
+    u.armR.shoulder.rotation.x = (1 - t) * 1.0;
+    u.armR.elbow.rotation.x = (1 - t) * 0.1;
+    u.armL.shoulder.rotation.x = (1 - t) * 0.3;
+  }
+  const flick = 0.7 + Math.sin(performance.now() * 0.006) * 0.3;
+  u.eyeL.material.color.setRGB(flick, 0.1, 0.1);
+  u.eyeR.material.color.setRGB(flick, 0.1, 0.1);
+}
+
 function updateGroundEnemy(enemy, dt, playerPos, groundHeightFn, onShoot) {
   const u = enemy.userData;
   if (!u.alive) return;

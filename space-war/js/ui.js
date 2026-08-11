@@ -56,6 +56,15 @@ function hideDigProgress() { $('dig-progress-wrap').classList.add('hidden'); }
 
 function showCrosshair(show) { $('crosshair').classList.toggle('hidden', !show); }
 
+function showBossHealth(show, name, hp, maxHp) {
+  const el = $('boss-health-wrap');
+  el.classList.toggle('hidden', !show);
+  if (!show) return;
+  $('boss-name').textContent = name;
+  const pct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
+  $('boss-health-bar').style.width = pct + '%';
+}
+
 function updateAmmo(show, ammo, magSize, reloading) {
   const el = $('ammo-display');
   el.classList.toggle('hidden', !show);
@@ -109,7 +118,7 @@ const ui = {
   showLoading, showTitleScreen, showHUD, setContinueEnabled,
   updateHealth, updateCoins, updateParts, setLocationLabel,
   showInteractPrompt, hideInteractPrompt, showToast,
-  showDigProgress, hideDigProgress, showCrosshair, updateAmmo,
+  showDigProgress, hideDigProgress, showCrosshair, updateAmmo, showBossHealth,
   openPanel, closePanel, isPanelOpen, initPanelClose,
   renderMissionTracker, showBigMessage, hideBigMessage, showStarmapHint,
 };

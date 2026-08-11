@@ -119,6 +119,15 @@ const sfx = {
     tone(260, { type: 'square', dur: 0.05, vol: 0.1, delay: 0.16 });
   },
   reloadDone() { tone(480, { type: 'square', dur: 0.06, vol: 0.13 }); tone(720, { type: 'square', dur: 0.08, vol: 0.13, delay: 0.05 }); },
+  wallSmash() {
+    noiseBurst({ dur: 0.4, decay: 1.8, filterFreq: 500, vol: 0.5 });
+    tone(70, { type: 'sawtooth', dur: 0.5, vol: 0.3, slideTo: 24 });
+  },
+  yetiRoar() {
+    tone(140, { type: 'sawtooth', dur: 0.6, vol: 0.24, slideTo: 90 });
+    tone(90, { type: 'sawtooth', dur: 0.7, vol: 0.2, slideTo: 50, delay: 0.1 });
+  },
+  yetiPunch() { noiseBurst({ dur: 0.22, decay: 2.4, filterFreq: 800, vol: 0.35 }); tone(80, { type: 'square', dur: 0.15, vol: 0.2, slideTo: 40 }); },
 };
 
 // ---- sustained rocket engine rumble (loops for the whole flight, not just a blip) ----

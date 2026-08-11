@@ -18,6 +18,7 @@ const PLANETS = {
     size: 600, hills: 12, craters: 4,
     enemyCount: 7, dugSites: 4, wreckPos: [-75, 0, 60], vehicleType: 'crawler',
     partSpots: { fins: [-105, 0, -105] }, outfitColor: 0x9fe0f0, caveRadius: 270,
+    secretRoom: true, secretRoomEnemyCount: 5, secretRoomBoss: 'yeti',
   },
   3: {
     name: 'Emberfall', theme: 'volcanic',
