@@ -142,13 +142,14 @@ function createYetiBoss(spawn) {
 
   g.position.set(spawn.x, spawn.y, spawn.z);
   g.userData = {
-    isEnemy: true, kind: 'yeti', hp: 200, maxHp: 200,
+    isEnemy: true, kind: 'yeti', hp: 380, maxHp: 380,
     home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
     walkT: Math.random() * 10, alive: true,
-    hitRadius: 3.4, punchDamage: 24, punchRange: 3.6,
-    slamRange: 11, slamRadius: 7, slamDamage: 22,
-    chargeSpeed: 13, chargeDamage: 30,
-    specialCooldown: 3,
+    hitRadius: 3.4, punchDamage: 30, punchRange: 4.0,
+    slamRange: 12, slamRadius: 8, slamDamage: 30,
+    chargeSpeed: 16, chargeDamage: 38,
+    chaseSpeed: 3.6,
+    specialCooldown: 2,
     attackState: 'burst', attackTimer: 0, hasHitThisSwing: false, chargeDir: new THREE.Vector3(),
     body, head, jaw, armL, armR, legL, legR, eyeL, eyeR,
   };
@@ -177,13 +178,13 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
       if (dist <= u.punchRange * 0.8) {
         u.attackState = 'winding'; u.attackTimer = 0; u.hasHitThisSwing = false;
       } else if (u.specialCooldown <= 0 && dist <= u.slamRange) {
-        u.attackState = 'windSlam'; u.attackTimer = 0; u.specialCooldown = 6 + Math.random() * 2;
+        u.attackState = 'windSlam'; u.attackTimer = 0; u.specialCooldown = 4 + Math.random() * 1.5;
       } else if (u.specialCooldown <= 0 && dist > u.slamRange) {
-        u.attackState = 'windCharge'; u.attackTimer = 0; u.specialCooldown = 7 + Math.random() * 2;
+        u.attackState = 'windCharge'; u.attackTimer = 0; u.specialCooldown = 5 + Math.random() * 1.5;
       } else {
         const dir = toPlayer.normalize();
-        yeti.position.x += dir.x * 2.6 * dt;
-        yeti.position.z += dir.z * 2.6 * dt;
+        yeti.position.x += dir.x * u.chaseSpeed * dt;
+        yeti.position.z += dir.z * u.chaseSpeed * dt;
         yeti.position.y = groundHeightFn(yeti.position.x, yeti.position.z);
         moving = true;
       }
@@ -202,7 +203,7 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
     if (u.attackTimer >= 0.22) { u.attackState = 'recover'; u.attackTimer = 0; }
   } else if (u.attackState === 'recover') {
     u.attackTimer += dt;
-    if (u.attackTimer >= 0.45) { u.attackState = 'chase'; u.attackTimer = 0; }
+    if (u.attackTimer >= 0.3) { u.attackState = 'chase'; u.attackTimer = 0; }
 
   // ---- special: ice slam - both fists raised, then a ground-pound AOE shockwave ----
   } else if (u.attackState === 'windSlam') {
@@ -220,7 +221,7 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
     if (u.attackTimer >= 0.3) { u.attackState = 'recoverSlam'; u.attackTimer = 0; }
   } else if (u.attackState === 'recoverSlam') {
     u.attackTimer += dt;
-    if (u.attackTimer >= 0.6) { u.attackState = 'chase'; u.attackTimer = 0; }
+    if (u.attackTimer >= 0.4) { u.attackState = 'chase'; u.attackTimer = 0; }
 
   // ---- special: charge - a fast telegraphed dash straight at the player's last position ----
   } else if (u.attackState === 'windCharge') {
@@ -243,7 +244,7 @@ function updateYetiBoss(yeti, dt, playerPos, groundHeightFn, callbacks) {
     if (u.attackTimer >= 0.6) { u.attackState = 'recoverCharge'; u.attackTimer = 0; }
   } else if (u.attackState === 'recoverCharge') {
     u.attackTimer += dt;
-    if (u.attackTimer >= 0.7) { u.attackState = 'chase'; u.attackTimer = 0; }
+    if (u.attackTimer >= 0.5) { u.attackState = 'chase'; u.attackTimer = 0; }
   }
 
   animateYetiBoss(yeti, dt, moving);
