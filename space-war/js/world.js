@@ -7,7 +7,7 @@ function seededRand(seed) {
   };
 }
 
-function buildTerrain(planet, seed) {
+function buildTerrain(planet, heightFn) {
   const size = planet.size;
   const segs = Math.min(160, Math.round(70 + size / 8));
   const geo = new THREE.PlaneGeometry(size, size, segs, segs);
@@ -18,7 +18,7 @@ function buildTerrain(planet, seed) {
   const cB = new THREE.Color(planet.ground2);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
-    const h = terrainHeight(x, z, seed, 7 + planet.hills * 0.4);
+    const h = heightFn(x, z);
     pos.setY(i, h);
     const t = Math.max(0, Math.min(1, (h + 6) / 12));
     const c = cA.clone().lerp(cB, t);
@@ -274,27 +274,21 @@ function buildPlanetScene(planetId) {
   sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
   scene.add(sun);
 
-  const terrain = buildTerrain(planet, seed);
-  scene.add(terrain);
-
-  function groundHeightFn(x, z) {
+  // ---- find a steep hillside for the mineshaft first (using the raw, unflattened height),
+  // so the terrain built below can be shaped around it instead of the entrance getting
+  // placed on top of a slope and swallowed by it ----
+  function rawHeightFn(x, z) {
     return terrainHeight(x, z, seed, 7 + planet.hills * 0.4);
   }
-
-  // ---- signature landmark ----
-  const landmark = buildLandmark(planet, groundHeightFn, rand);
-  scene.add(landmark);
-
-  // ---- find a steep hillside for the mineshaft, before scattering rocks/crystals, so those can avoid it ----
   let mineX = 0, mineZ = 0, mineY = -Infinity, mineFacing = 0, bestScore = -Infinity;
   for (let attempt = 0; attempt < 24; attempt++) {
     const tx = (rand() - 0.5) * planet.size * 0.7;
     const tz = (rand() - 0.5) * planet.size * 0.7;
     if (Math.hypot(tx, tz) < 16) continue;
-    const h = groundHeightFn(tx, tz);
+    const h = rawHeightFn(tx, tz);
     const d = 5;
-    const gx = groundHeightFn(tx + d, tz) - groundHeightFn(tx - d, tz);
-    const gz = groundHeightFn(tx, tz + d) - groundHeightFn(tx, tz - d);
+    const gx = rawHeightFn(tx + d, tz) - rawHeightFn(tx - d, tz);
+    const gz = rawHeightFn(tx, tz + d) - rawHeightFn(tx, tz - d);
     const steepness = Math.hypot(gx, gz);
     const dist = Math.hypot(tx, tz);
     // favor a high AND steep spot (a hillside, not a flat plain), with a mild pull toward
@@ -305,6 +299,25 @@ function buildPlanetScene(planetId) {
       mineFacing = Math.atan2(gx, gz); // points downhill - the entrance faces outward from the slope
     }
   }
+
+  // flatten a clean pad of real terrain around the mineshaft site, blending back to the
+  // natural slope further out - without this, the actual hill (which we picked *because*
+  // it's steep) rises up around the small entrance structure and swallows it
+  const minePadRadius = 20, minePadBlend = 42;
+  function groundHeightFn(x, z) {
+    const raw = rawHeightFn(x, z);
+    const d = Math.hypot(x - mineX, z - mineZ);
+    if (d >= minePadBlend) return raw;
+    const t = Math.max(0, Math.min(1, (d - minePadRadius) / (minePadBlend - minePadRadius)));
+    return mineY * (1 - t) + raw * t;
+  }
+
+  const terrain = buildTerrain(planet, groundHeightFn);
+  scene.add(terrain);
+
+  // ---- signature landmark ----
+  const landmark = buildLandmark(planet, groundHeightFn, rand);
+  scene.add(landmark);
 
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
