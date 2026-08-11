@@ -10,6 +10,7 @@ const PLANETS = {
     size: 600, hills: 10, craters: 5,
     enemyCount: 5, dugSites: 4, wreckPos: [60, 0, -80], vehicleType: 'rover',
     partSpots: { noseCone: [-90, 0, 90] }, outfitColor: 0xd4622a, caveRadius: 225,
+    secretRoom: true,
   },
   2: {
     name: 'Cryovale', theme: 'ice',

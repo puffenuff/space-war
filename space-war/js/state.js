@@ -4,7 +4,7 @@ const SAVE_KEY = 'spacewar_save_v1';
 function freshState() {
   const planets = {};
   PLANET_ID_LIST.forEach((id) => {
-    planets[id] = { unlocked: id === 1, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false };
+    planets[id] = { unlocked: id === 1, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false, secretRoomDone: false };
   });
   return {
     playerName: 'Billy Bob',

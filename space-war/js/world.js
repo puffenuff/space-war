@@ -876,6 +876,107 @@ function buildPlanetScene(planetId) {
     caveEnemySpawns.push({ x: caveOrigin.x + Math.cos(a) * r, y: caveOrigin.y, z: caveOrigin.z + Math.sin(a) * r });
   }
 
+  // ---- secret ambush vault: hidden room reached via a marked trail, seals shut on entry ----
+  let secretRoom = null;
+  if (planet.secretRoom) {
+    const corridorWidth = 5;
+    const corridorHeight = 6.4;
+    const trailStartZ = -caveRadius * 0.62;
+    const corridorStartZ = -caveRadius * 0.95;
+    const corridorLength = 30;
+    const corridorEndZ = corridorStartZ - corridorLength;
+    const roomRadius = 22;
+    const roomHeight = Math.min(caveHeight, 16);
+    const roomCenterZ = corridorEndZ - roomRadius - 4;
+    const doorZ = corridorEndZ;
+
+    // glowing trail markers leading from the main chamber to the vault entrance
+    const trailMat = new THREE.MeshStandardMaterial({ color: 0xffcf6a, emissive: 0xffaa33, emissiveIntensity: 0.9, roughness: 0.4 });
+    const trailCount = 11;
+    for (let i = 0; i < trailCount; i++) {
+      const tFrac = i / (trailCount - 1);
+      const tz = trailStartZ + (corridorStartZ - trailStartZ) * tFrac;
+      const tx = Math.sin(tFrac * Math.PI * 1.4) * 1.6;
+      const marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.32, 6), trailMat);
+      marker.position.set(tx, -0.32, tz);
+      caveGroup.add(marker);
+    }
+
+    // rock corridor connecting the main chamber to the hidden room
+    const corridorMat = new THREE.MeshStandardMaterial({ color: 0x241a12, roughness: 1 });
+    const corridorZ = (corridorStartZ + corridorEndZ) / 2;
+    const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.8, corridorHeight, corridorLength), corridorMat);
+    wallL.position.set(-corridorWidth / 2, corridorHeight / 2 - 0.5, corridorZ);
+    caveGroup.add(wallL);
+    const wallR = wallL.clone();
+    wallR.position.x = corridorWidth / 2;
+    caveGroup.add(wallR);
+    const corridorCeil = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 1.6, 0.8, corridorLength), corridorMat);
+    corridorCeil.position.set(0, corridorHeight - 0.5, corridorZ);
+    caveGroup.add(corridorCeil);
+
+    // the sealed vault room itself
+    const roomWallMat = new THREE.MeshStandardMaterial({ color: 0x351c18, roughness: 1, side: THREE.BackSide });
+    const roomWall = new THREE.Mesh(new THREE.CylinderGeometry(roomRadius, roomRadius, roomHeight, 20, 1, true), roomWallMat);
+    roomWall.position.set(0, roomHeight / 2 - 0.5, roomCenterZ);
+    caveGroup.add(roomWall);
+    const roomFloor = new THREE.Mesh(new THREE.CircleGeometry(roomRadius, 20), new THREE.MeshStandardMaterial({ color: 0x2a1712, roughness: 1 }));
+    roomFloor.rotation.x = -Math.PI / 2;
+    roomFloor.position.set(0, -0.5, roomCenterZ);
+    caveGroup.add(roomFloor);
+    const roomCeil = new THREE.Mesh(new THREE.CircleGeometry(roomRadius, 20), new THREE.MeshStandardMaterial({ color: 0x1c100c, roughness: 1, side: THREE.DoubleSide }));
+    roomCeil.rotation.x = -Math.PI / 2;
+    roomCeil.position.set(0, roomHeight - 0.5, roomCenterZ);
+    caveGroup.add(roomCeil);
+    const roomLight = new THREE.PointLight(0xff6a3a, 1.1, roomRadius * 1.4);
+    roomLight.position.set(0, roomHeight * 0.6, roomCenterZ);
+    caveGroup.add(roomLight);
+
+    // blast door: normally retracted below the floor, rises to seal the corridor once triggered
+    const doorClosedY = corridorHeight / 2 - 0.5;
+    const doorOpenY = -corridorHeight - 1;
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.6, roughness: 0.35 });
+    const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 0.4, corridorHeight, 0.7), doorMat);
+    doorMesh.position.set(0, doorOpenY, doorZ);
+    doorMesh.userData = { state: 'open', closedY: doorClosedY, openY: doorOpenY };
+    caveGroup.add(doorMesh);
+    const doorStripe = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth, 0.3, 0.75), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+    doorStripe.position.set(0, 0, 0.02);
+    doorMesh.add(doorStripe);
+
+    // dormant prize crate at the room's center, lights up once the vault is cleared
+    const prizeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, emissive: 0x000000, metalness: 0.5, roughness: 0.4 });
+    const prizeCrate = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.1), prizeMat);
+    prizeCrate.position.set(0, 0.05, roomCenterZ);
+    caveGroup.add(prizeCrate);
+    const prizeGlow = new THREE.PointLight(0xffd35e, 0, 8);
+    prizeGlow.position.set(0, 1.2, roomCenterZ);
+    caveGroup.add(prizeGlow);
+
+    // 15 ambush spawn points ringed around the room (world positions; game.js instantiates the enemies on trigger)
+    const enemySpawns = [];
+    const ambushCount = 15;
+    for (let i = 0; i < ambushCount; i++) {
+      const ring = i < 8 ? 0 : 1;
+      const idxInRing = ring === 0 ? i : i - 8;
+      const ringCount = ring === 0 ? 8 : 7;
+      const a = (idxInRing / ringCount) * Math.PI * 2 + ring * 0.35;
+      const r = roomRadius * (ring === 0 ? 0.65 : 0.32);
+      enemySpawns.push({
+        x: caveOrigin.x + Math.cos(a) * r,
+        y: caveOrigin.y,
+        z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
+      });
+    }
+
+    secretRoom = {
+      doorMesh, doorStripe, prizeCrate, prizeGlow,
+      roomCenter: { x: 0, z: roomCenterZ }, roomRadius,
+      enemySpawns,
+      triggered: false, resolved: false, remaining: 0, activeEnemies: [],
+    };
+  }
+
   // cave exit: bottom of a mineshaft, with a ladder climbing up out of view
   const caveExit = new THREE.Group();
   const exitWoodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
@@ -940,7 +1041,21 @@ function buildPlanetScene(planetId) {
     lostRocketSurface: planet.lostRocketPos ? { x: planet.lostRocketPos[0], z: planet.lostRocketPos[2] } : null,
     enemySpawns: buildEnemySpawns(planet, rand, groundHeightFn),
     caveEnemySpawns,
+    secretRoom,
     tick(dt, t) {
+      if (secretRoom) {
+        const dm = secretRoom.doorMesh;
+        const targetY = dm.userData.state === 'closed' ? dm.userData.closedY : dm.userData.openY;
+        dm.position.y += (targetY - dm.position.y) * Math.min(1, dt * 3);
+        if (dm.userData.state === 'closed') {
+          secretRoom.doorStripe.material.color.setRGB(1, 0.15 + Math.sin(t * 6) * 0.1, 0.15);
+        }
+        if (secretRoom.resolved) {
+          secretRoom.prizeCrate.material.emissive.setHex(0xffaa33);
+          secretRoom.prizeCrate.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
+          secretRoom.prizeGlow.intensity = 1.2 + Math.sin(t * 3) * 0.4;
+        }
+      }
       scrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
       coinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       caveScrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });

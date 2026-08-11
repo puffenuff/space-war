@@ -140,6 +140,12 @@ function ensurePlanetBuild(id) {
     build.scene.remove(build.lostRocket);
     build.lostRocket = null;
   }
+  if (build.secretRoom && state.planets[id].secretRoomDone) {
+    const sr = build.secretRoom;
+    sr.triggered = true; sr.resolved = true;
+    sr.doorMesh.userData.state = 'open';
+    sr.doorMesh.position.y = sr.doorMesh.userData.openY;
+  }
   planetBuilds[id] = build;
   return build;
 }
@@ -698,14 +704,20 @@ function updateGroundCombat(dt) {
         b.scene.remove(p); b.projectiles.splice(i, 1); hit = true;
         if (e.userData.hp <= 0) {
           e.userData.alive = false;
-          e.userData.respawnAt = elapsed + 25;
+          if (!e.userData.noRespawn) e.userData.respawnAt = elapsed + 25;
           b.explosions.push(createExplosion(b.scene, e.position, 0xffaa33));
           b.scene.remove(e);
           const coinGain = 8 + Math.floor(Math.random() * 10);
           state.coins += coinGain;
           sfx.explosion();
           progressKill(currentPlanetId, missionToast);
-          ui.showToast(`Raider down! +${coinGain} Coins`);
+          if (e.userData.secretRoom && b.secretRoom) {
+            b.secretRoom.remaining -= 1;
+            ui.showToast(`Raider down! +${coinGain} Coins (${b.secretRoom.remaining} left)`);
+            if (b.secretRoom.remaining <= 0) resolveSecretRoom(b);
+          } else {
+            ui.showToast(`Raider down! +${coinGain} Coins`);
+          }
         } else {
           sfx.hit();
         }
@@ -733,6 +745,50 @@ function respawnPlayer() {
   sfx.knockedOut();
   enterBase();
   ui.showToast('Knocked out! Rescued back to Base.');
+}
+
+// ===================== SECRET AMBUSH VAULT =====================
+function updateSecretRoom() {
+  if (mode !== 'planet' || !inCave) return;
+  const b = activeBuild;
+  const sr = b.secretRoom;
+  if (!sr || sr.triggered || sr.resolved) return;
+  const pPos = player.mesh.position;
+  const dx = (pPos.x - b.caveOrigin.x) - sr.roomCenter.x;
+  const dz = (pPos.z - b.caveOrigin.z) - sr.roomCenter.z;
+  if (Math.hypot(dx, dz) < sr.roomRadius * 0.92) {
+    triggerSecretRoom(b, sr);
+  }
+}
+
+function triggerSecretRoom(b, sr) {
+  sr.triggered = true;
+  sr.doorMesh.userData.state = 'closed';
+  sr.remaining = sr.enemySpawns.length;
+  sr.activeEnemies = sr.enemySpawns.map((spawn) => {
+    const e = createGroundEnemy(spawn);
+    e.userData.hp = 22; e.userData.maxHp = 22;
+    e.userData.secretRoom = true;
+    e.userData.noRespawn = true;
+    b.scene.add(e);
+    b.enemies.push(e);
+    return e;
+  });
+  sfx.denied();
+  ui.showBigMessage('AMBUSH!', 'The vault door seals shut behind you. Clear them all!', 2800);
+}
+
+function resolveSecretRoom(b) {
+  const sr = b.secretRoom;
+  sr.resolved = true;
+  sr.doorMesh.userData.state = 'open';
+  state.planets[currentPlanetId].secretRoomDone = true;
+  const coinGain = 250;
+  state.coins += coinGain;
+  state.inventory.tools += 3;
+  saveGame();
+  sfx.win();
+  ui.showBigMessage('VAULT CLEARED!', `The blast door opens. +${coinGain} Coins, +3 Repair Tools`, 3800);
 }
 
 // ===================== MAIN LOOP =====================
@@ -795,6 +851,7 @@ function tick() {
   collectiblesTick(dt);
   if (mode === 'planet') {
     updateGroundCombat(dt);
+    updateSecretRoom();
     activeBuild.tick(dt, elapsed);
     ui.renderMissionTracker(activeMissions(currentPlanetId));
   } else if (mode === 'base') {
