@@ -487,15 +487,17 @@ function buildPlanetScene(planetId) {
   const mountainColor = new THREE.Color(planet.ground2).lerp(new THREE.Color(0x4a4a4a), 0.6);
   const mountainMat = new THREE.MeshStandardMaterial({ color: mountainColor, roughness: 0.9 });
 
-  // one big, tall mountain peak (not scattered boulders) that the shaft is bored into
+  // one big, tall mountain peak (not scattered boulders) that the shaft is bored into.
+  // each cone's footprint (center z + radius) is kept behind the doorway's opening (z ~0.7)
+  // so the rock mass reads as "behind/around" the entrance instead of bulging out over it
   const mountainRand = seededRand(planetId * 613 + 29);
   const peak = new THREE.Mesh(new THREE.ConeGeometry(17, 50, 9), mountainMat);
-  peak.position.set(1, 24, -9);
+  peak.position.set(1, 24, -18);
   peak.rotation.y = mountainRand() * Math.PI;
   peak.castShadow = true; peak.receiveShadow = true;
   mineEntrance.add(peak);
   // smaller shoulder peaks so it reads as a mountain, not one perfect cone
-  [[-9, 15, -6, 9, 30], [8, 12, -8, 7, 24], [-2, 9, -4, 6, 20]].forEach(([px, py, pz, r, h]) => {
+  [[-9, 15, -10, 9, 30], [8, 12, -8, 7, 24], [-2, 9, -7, 6, 20]].forEach(([px, py, pz, r, h]) => {
     const shoulder = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), mountainMat);
     shoulder.position.set(px, py, pz);
     shoulder.rotation.y = mountainRand() * Math.PI;
@@ -570,6 +572,15 @@ function buildPlanetScene(planetId) {
   const caveGroup = new THREE.Group();
   caveGroup.position.copy(caveOrigin);
   const caveRand = seededRand(planetId * 47 + 501);
+  // reserve a clear lane for the secret vault trail (built further below) so stalagmites,
+  // pillars, and crystal clusters never spawn on top of it and block the path
+  const secretTrailZoneStartZ = -caveRadius * 0.58;
+  const secretTrailZoneEndZ = -caveRadius * 0.99;
+  const secretTrailHalfWidth = 6;
+  function inSecretTrailZone(x, z) {
+    if (!planet.secretRoom) return false;
+    return z <= secretTrailZoneStartZ && z >= secretTrailZoneEndZ && Math.abs(x) < secretTrailHalfWidth;
+  }
   // uneven rocky floor with subtle noise bumps and mineral color streaking
   const floorGeo = new THREE.CircleGeometry(caveRadius, 48);
   const floorPos = floorGeo.attributes.position;
@@ -667,10 +678,12 @@ function buildPlanetScene(planetId) {
   const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
   const glowOrbCount = Math.min(95, Math.round(caveRadius * 0.42));
   for (let i = 0; i < glowOrbCount; i++) {
-    const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0x6fd7ff : 0xffaa55 }));
     const a = (i / glowOrbCount) * Math.PI * 2;
     const rr = caveRadius * (0.35 + (i % 3) * 0.2);
-    o.position.set(Math.cos(a) * rr, 0.5, Math.sin(a) * rr);
+    const ox = Math.cos(a) * rr, oz = Math.sin(a) * rr;
+    if (inSecretTrailZone(ox, oz)) continue;
+    const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0x6fd7ff : 0xffaa55 }));
+    o.position.set(ox, 0.5, oz);
     caveGroup.add(o);
   }
 
@@ -693,12 +706,18 @@ function buildPlanetScene(planetId) {
   const stalagMat = new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 1 });
   const stalagCount = Math.min(130, Math.round(caveRadius * 0.6));
   for (let i = 0; i < stalagCount; i++) {
-    const a = caveRand() * Math.PI * 2;
-    const r = 6 + caveRand() * (caveRadius - 10);
+    let sx, sz, tries = 0;
+    do {
+      const a = caveRand() * Math.PI * 2;
+      const r = 6 + caveRand() * (caveRadius - 10);
+      sx = Math.cos(a) * r; sz = Math.sin(a) * r;
+      tries++;
+    } while (inSecretTrailZone(sx, sz) && tries < 6);
+    if (inSecretTrailZone(sx, sz)) continue;
     const s = new THREE.Mesh(stalagGeo, stalagMat);
     const h = 1.5 + caveRand() * 3.5;
     s.scale.set(0.8 + caveRand() * 1.2, h, 0.8 + caveRand() * 1.2);
-    s.position.set(Math.cos(a) * r, -0.5 + h / 2, Math.sin(a) * r);
+    s.position.set(sx, -0.5 + h / 2, sz);
     s.rotation.y = caveRand() * Math.PI;
     caveGroup.add(s);
   }
@@ -707,13 +726,19 @@ function buildPlanetScene(planetId) {
   const stalactiteMat = new THREE.MeshStandardMaterial({ color: 0x5a4834, roughness: 1 });
   const stalactiteCount = Math.min(160, Math.round(caveRadius * 0.75));
   for (let i = 0; i < stalactiteCount; i++) {
-    const a = caveRand() * Math.PI * 2;
-    const r = caveRand() * (caveRadius - 4);
+    let tx, tz, tries = 0;
+    do {
+      const a = caveRand() * Math.PI * 2;
+      const r = caveRand() * (caveRadius - 4);
+      tx = Math.cos(a) * r; tz = Math.sin(a) * r;
+      tries++;
+    } while (inSecretTrailZone(tx, tz) && tries < 6);
+    if (inSecretTrailZone(tx, tz)) continue;
     const t = new THREE.Mesh(stalagGeo, stalactiteMat);
     const h = 1.2 + caveRand() * 4.5;
     t.scale.set(0.6 + caveRand() * 0.9, h, 0.6 + caveRand() * 0.9);
     t.rotation.x = Math.PI;
-    t.position.set(Math.cos(a) * r, caveHeight - 0.5 - h / 2, Math.sin(a) * r);
+    t.position.set(tx, caveHeight - 0.5 - h / 2, tz);
     t.rotation.y = caveRand() * Math.PI;
     caveGroup.add(t);
   }
@@ -749,8 +774,14 @@ function buildPlanetScene(planetId) {
   const crystalGeo = new THREE.ConeGeometry(0.4, 1, 5);
   const crystalClusterCount = Math.min(32, Math.round(caveRadius / 10));
   for (let i = 0; i < crystalClusterCount; i++) {
-    const a = caveRand() * Math.PI * 2;
-    const r = 8 + caveRand() * (caveRadius - 14);
+    let cx, cz, tries = 0;
+    do {
+      const a = caveRand() * Math.PI * 2;
+      const r = 8 + caveRand() * (caveRadius - 14);
+      cx = Math.cos(a) * r; cz = Math.sin(a) * r;
+      tries++;
+    } while (inSecretTrailZone(cx, cz) && tries < 6);
+    if (inSecretTrailZone(cx, cz)) continue;
     const cluster = new THREE.Group();
     const shardCount = 3 + Math.floor(caveRand() * 3);
     for (let j = 0; j < shardCount; j++) {
@@ -761,7 +792,7 @@ function buildPlanetScene(planetId) {
       shard.rotation.z = (caveRand() - 0.5) * 0.3;
       cluster.add(shard);
     }
-    cluster.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
+    cluster.position.set(cx, 0, cz);
     caveGroup.add(cluster);
   }
 
@@ -797,8 +828,14 @@ function buildPlanetScene(planetId) {
   const pillarRand = seededRand(planetId * 71 + 909);
   const pillarCount = Math.min(34, Math.max(4, Math.round(caveRadius / 12)));
   for (let i = 0; i < pillarCount; i++) {
-    const a = pillarRand() * Math.PI * 2;
-    const r = 12 + pillarRand() * (caveRadius - 20);
+    let px0, pz0, tries = 0;
+    do {
+      const a = pillarRand() * Math.PI * 2;
+      const r = 12 + pillarRand() * (caveRadius - 20);
+      px0 = Math.cos(a) * r; pz0 = Math.sin(a) * r;
+      tries++;
+    } while (inSecretTrailZone(px0, pz0) && tries < 6);
+    if (inSecretTrailZone(px0, pz0)) continue;
     const radiusTop = 0.6 + pillarRand() * 0.8;
     const radiusBottom = 0.9 + pillarRand() * 1.1;
     const pillarGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, caveHeight, 8, 6);
@@ -814,7 +851,7 @@ function buildPlanetScene(planetId) {
     }
     pillarGeo.computeVertexNormals();
     const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-    pillar.position.set(Math.cos(a) * r, caveHeight / 2 - 0.5, Math.sin(a) * r);
+    pillar.position.set(px0, caveHeight / 2 - 0.5, pz0);
     pillar.rotation.y = pillarRand() * Math.PI;
     caveGroup.add(pillar);
   }
