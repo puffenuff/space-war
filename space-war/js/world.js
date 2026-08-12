@@ -1025,19 +1025,23 @@ function buildPlanetScene(planetId) {
     roomLight.position.set(0, roomHeight * 0.6, roomCenterZ);
     caveGroup.add(roomLight);
 
-    // boss wall: an icy slab flush with the far wall (opposite the corridor entrance) that
-    // looks like solid rock until game.js triggers the burst - the boss then appears at
-    // bossSpawnLocal, just in front of where the wall used to be
+    // boss wall: a slab flush with the far wall (opposite the corridor entrance) that looks
+    // like solid rock until game.js triggers the burst - the boss then appears at
+    // bossSpawnLocal, just in front of where the wall used to be. Tinted per-planet: a rock
+    // base blended toward the boss's own accent color (falls back to icy blue for the yeti).
     let bossWallPanel = null, bossSpawnLocal = null;
     if (hasBoss) {
       const bossAngle = -Math.PI / 2; // straight back from the room center, away from the door
       const wallX = Math.cos(bossAngle) * roomRadius;
       const wallZ = roomCenterZ + Math.sin(bossAngle) * roomRadius;
-      const panelMat = new THREE.MeshStandardMaterial({ color: 0xcfeaff, emissive: 0x2a5a7a, emissiveIntensity: 0.25, metalness: 0.15, roughness: 0.35 });
+      const bossDef = BOSSES[planet.secretRoomBoss];
+      const panelAccent = bossDef ? bossDef.accentColor : 0x8fd8ff;
+      const panelBase = new THREE.Color(planet.ground2).lerp(new THREE.Color(0xffffff), 0.35);
+      const panelMat = new THREE.MeshStandardMaterial({ color: panelBase, emissive: panelAccent, emissiveIntensity: 0.3, metalness: 0.15, roughness: 0.35 });
       bossWallPanel = new THREE.Mesh(new THREE.BoxGeometry(10, 9, 1.4), panelMat);
       bossWallPanel.position.set(wallX, 4.0, wallZ + 0.4);
       caveGroup.add(bossWallPanel);
-      const panelLight = new THREE.PointLight(0x8fd8ff, 0.7, 14);
+      const panelLight = new THREE.PointLight(panelAccent, 0.7, 14);
       panelLight.position.set(wallX, 4.5, wallZ + 2);
       caveGroup.add(panelLight);
       bossSpawnLocal = { x: wallX, y: 0, z: wallZ + 3.5 };

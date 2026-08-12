@@ -328,6 +328,314 @@ function animateYetiBoss(yeti, dt, moving) {
   u.eyeR.material.color.setRGB(flick, 0.1, 0.1);
 }
 
+// ===================== GENERIC BOSS (data-driven, one per planet's secret vault) =====================
+// A shared jointed humanoid rig (same shoulder/elbow/fist arms as the yeti) reskinned per planet via
+// a BOSSES def (colors + a decoration kit for silhouette variety) and driven by a data-defined moveset
+// (melee + up to two specials of type aoe/dash/projectile) instead of bespoke per-boss code.
+function applyBossDecoration(g, def, accentMat, darkMat) {
+  const type = def.decoration || 'spikes';
+  if (type === 'spikes') {
+    const spikeGeo = new THREE.ConeGeometry(0.12, 0.5, 5);
+    [[-1.0, 3.7, -0.15], [1.0, 3.7, -0.15], [-0.45, 4.5, -0.1], [0.45, 4.5, -0.1]].forEach(([x, y, z]) => {
+      const s = new THREE.Mesh(spikeGeo, accentMat); s.position.set(x, y, z); g.add(s);
+    });
+  } else if (type === 'horns') {
+    const hornGeo = new THREE.ConeGeometry(0.09, 0.55, 6);
+    const hL = new THREE.Mesh(hornGeo, accentMat); hL.position.set(-0.4, 4.55, 0.1); hL.rotation.z = 0.5; hL.rotation.x = -0.3;
+    const hR = new THREE.Mesh(hornGeo, accentMat); hR.position.set(0.4, 4.55, 0.1); hR.rotation.z = -0.5; hR.rotation.x = -0.3;
+    g.add(hL, hR);
+  } else if (type === 'crystals') {
+    const crystalGeo = new THREE.ConeGeometry(0.18, 0.7, 5);
+    [[-1.0, 3.3, -0.3], [1.0, 3.3, -0.3], [-0.55, 4.6, -0.2], [0.55, 4.6, -0.2]].forEach(([x, y, z], i) => {
+      const c = new THREE.Mesh(crystalGeo, accentMat); c.position.set(x, y, z); c.rotation.z = (i % 2 ? 0.3 : -0.3); g.add(c);
+    });
+  } else if (type === 'plates') {
+    const plateGeo = new THREE.BoxGeometry(0.5, 0.6, 0.15);
+    const pL = new THREE.Mesh(plateGeo, darkMat); pL.position.set(-1.05, 3.4, -0.1);
+    const pR = new THREE.Mesh(plateGeo, darkMat); pR.position.set(1.05, 3.4, -0.1);
+    const pC = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.8, 0.12), darkMat); pC.position.set(0, 2.9, 0.75);
+    g.add(pL, pR, pC);
+  } else if (type === 'tentacles') {
+    const tentGeo = new THREE.CylinderGeometry(0.05, 0.09, 1.0, 6);
+    [[-0.6, 3.5, 0.4, 0.4], [0.0, 3.4, 0.55, 0], [0.6, 3.5, 0.4, -0.4]].forEach(([x, y, z, rz]) => {
+      const t = new THREE.Mesh(tentGeo, darkMat); t.position.set(x, y, z); t.rotation.z = rz; t.rotation.x = 0.3; g.add(t);
+    });
+  } else if (type === 'shell') {
+    const shell = new THREE.Mesh(new THREE.SphereGeometry(1.1, 10, 8, 0, Math.PI * 2, 0, Math.PI / 1.8), darkMat);
+    shell.position.set(0, 3.0, -0.8); shell.rotation.x = Math.PI; g.add(shell);
+  } else if (type === 'fins') {
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.5, 0.9, 3), accentMat);
+    fin.position.set(0, 4.2, -0.9); fin.rotation.x = Math.PI / 2; fin.rotation.z = Math.PI;
+    g.add(fin);
+  } else if (type === 'antennae') {
+    const stalkGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6);
+    const tipGeo = new THREE.SphereGeometry(0.09, 8, 8);
+    [-0.25, 0.25].forEach((x) => {
+      const stalk = new THREE.Mesh(stalkGeo, darkMat); stalk.position.set(x, 4.75, 0.1); stalk.rotation.x = -0.3; g.add(stalk);
+      const tip = new THREE.Mesh(tipGeo, accentMat); tip.position.set(x, 5.05, 0.28); g.add(tip);
+    });
+  }
+}
+
+function createBossEnemy(spawn, def) {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: def.bodyColor, roughness: 0.75, metalness: def.metalness || 0.1 });
+  const darkMat = new THREE.MeshStandardMaterial({ color: def.darkColor, roughness: 0.7, metalness: def.metalness || 0.15 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: def.accentColor, emissive: def.accentColor, emissiveIntensity: 0.6, roughness: 0.3 });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: def.eyeColor || 0xff3b3b });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.4, 1.4), bodyMat);
+  body.position.y = 2.4; body.castShadow = true; g.add(body);
+  const chestTuft = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.9, 0.55), darkMat);
+  chestTuft.position.set(0, 2.75, 0.7); g.add(chestTuft);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 0.9), bodyMat);
+  head.position.set(0, 4.0, 0.12); head.castShadow = true; g.add(head);
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 8), eyeMat); eyeL.position.set(-0.26, 4.05, 0.56);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 8), eyeMat); eyeR.position.set(0.26, 4.05, 0.56);
+  g.add(eyeL, eyeR);
+
+  applyBossDecoration(g, def, accentMat, darkMat);
+
+  // arms are jointed (shoulder -> elbow -> fist), same rig style as the yeti, so the shared
+  // pose-by-move-type animation code below works regardless of which planet this boss is from
+  const upperArmGeo = new THREE.BoxGeometry(0.6, 1.4, 0.6);
+  const foreArmGeo = new THREE.BoxGeometry(0.55, 1.2, 0.55);
+  const fistGeo = new THREE.BoxGeometry(0.78, 0.78, 0.78);
+  function buildArm(sign) {
+    const shoulder = new THREE.Group();
+    shoulder.position.set(sign * 1.25, 3.3, 0.1);
+    const upper = new THREE.Mesh(upperArmGeo, bodyMat); upper.position.y = -0.65; upper.castShadow = true; shoulder.add(upper);
+    const elbow = new THREE.Group(); elbow.position.set(0, -1.4, 0);
+    const fore = new THREE.Mesh(foreArmGeo, darkMat); fore.position.y = -0.55; fore.castShadow = true; elbow.add(fore);
+    const fist = new THREE.Mesh(fistGeo, accentMat); fist.position.y = -1.25; fist.castShadow = true; elbow.add(fist);
+    shoulder.add(elbow);
+    return { shoulder, elbow, fist };
+  }
+  const armL = buildArm(-1);
+  const armR = buildArm(1);
+  g.add(armL.shoulder, armR.shoulder);
+
+  const legGeo = new THREE.BoxGeometry(0.78, 1.2, 0.78);
+  const legL = new THREE.Mesh(legGeo, darkMat); legL.geometry.translate(0, -0.6, 0); legL.position.set(-0.55, 1.2, 0);
+  const legR = new THREE.Mesh(legGeo, darkMat); legR.geometry.translate(0, -0.6, 0); legR.position.set(0.55, 1.2, 0);
+  legL.castShadow = true; legR.castShadow = true;
+  g.add(legL, legR);
+
+  g.scale.setScalar(def.scale || 1.3);
+  g.position.set(spawn.x, spawn.y, spawn.z);
+  g.userData = {
+    isEnemy: true, kind: 'boss', bossType: def.key, displayName: def.name,
+    hp: def.hp, maxHp: def.hp,
+    home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
+    walkT: Math.random() * 10, alive: true,
+    hitRadius: def.hitRadius || 3.2,
+    chaseSpeed: def.chaseSpeed || 3.4,
+    moveset: def.moveset,
+    specialACooldown: 1.5, specialBCooldown: 2.5,
+    deathColor: def.accentColor,
+    attackState: 'burst', attackTimer: 0, hasHitThisSwing: false, chargeDir: new THREE.Vector3(),
+    body, head, armL, armR, legL, legR, eyeL, eyeR,
+  };
+  return g;
+}
+
+// resolves the "did it hit / do the movement" part of whichever special is currently active
+function resolveSpecialActive(boss, u, move, dt, playerPos, groundHeightFn, onHit, setMoving) {
+  if (move.type === 'aoe') {
+    if (!u.hasHitThisSwing && u.attackTimer >= (move.hitDelay || 0.1)) {
+      u.hasHitThisSwing = true;
+      if (boss.position.distanceTo(playerPos) < move.radius) {
+        onHit(new THREE.Vector3().subVectors(playerPos, boss.position).setY(0).normalize(), move);
+      }
+    }
+  } else if (move.type === 'dash') {
+    boss.position.x += u.chargeDir.x * (move.speed || 15) * dt;
+    boss.position.z += u.chargeDir.z * (move.speed || 15) * dt;
+    boss.position.y = groundHeightFn(boss.position.x, boss.position.z);
+    setMoving(true);
+    if (!u.hasHitThisSwing && boss.position.distanceTo(playerPos) < (move.hitRange || 4.4)) {
+      u.hasHitThisSwing = true;
+      onHit(u.chargeDir.clone(), move);
+    }
+  } else if (move.type === 'projectile') {
+    if (!u.hasHitThisSwing && u.attackTimer >= (move.hitDelay || 0.15)) {
+      u.hasHitThisSwing = true;
+      onHit(new THREE.Vector3().subVectors(playerPos, boss.position).setY(0).normalize(), move);
+    }
+  }
+}
+
+// data-driven melee/special AI: chase until in melee range, or fire off whichever ready special
+// (of type aoe/dash/projectile) currently covers the distance to the player. Structurally the same
+// chase -> wind -> active -> recover flow as the yeti, generalized to read timings from moveset.
+function updateBossGeneric(boss, dt, playerPos, groundHeightFn, callbacks) {
+  const u = boss.userData;
+  if (!u.alive) return;
+  const { onMeleeHit, onSpecialAHit, onSpecialBHit } = callbacks;
+  const melee = u.moveset.melee, specialA = u.moveset.specialA, specialB = u.moveset.specialB;
+  const toPlayer = new THREE.Vector3().subVectors(playerPos, boss.position);
+  toPlayer.y = 0;
+  const dist = toPlayer.length();
+  let moving = false;
+  u.specialACooldown = Math.max(0, u.specialACooldown - dt);
+  if (specialB) u.specialBCooldown = Math.max(0, u.specialBCooldown - dt);
+
+  if (u.attackState === 'burst') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= 0.5) { u.attackState = 'chase'; u.attackTimer = 0; }
+  } else if (u.attackState === 'chase') {
+    if (dist < 45) {
+      boss.lookAt(playerPos.x, boss.position.y, playerPos.z);
+      if (dist <= melee.range * 0.8) {
+        u.attackState = 'winding'; u.attackTimer = 0; u.hasHitThisSwing = false;
+      } else if (specialA && u.specialACooldown <= 0 && dist <= specialA.maxRange && dist >= (specialA.minRange || 0)) {
+        u.attackState = 'windA'; u.attackTimer = 0; u.hasHitThisSwing = false;
+        u.specialACooldown = specialA.cooldownMin + Math.random() * specialA.cooldownVar;
+        if (specialA.type === 'dash') u.chargeDir.copy(toPlayer).normalize();
+      } else if (specialB && u.specialBCooldown <= 0 && dist <= specialB.maxRange && dist >= (specialB.minRange || 0)) {
+        u.attackState = 'windB'; u.attackTimer = 0; u.hasHitThisSwing = false;
+        u.specialBCooldown = specialB.cooldownMin + Math.random() * specialB.cooldownVar;
+        if (specialB.type === 'dash') u.chargeDir.copy(toPlayer).normalize();
+      } else {
+        const dir = toPlayer.normalize();
+        boss.position.x += dir.x * u.chaseSpeed * dt;
+        boss.position.z += dir.z * u.chaseSpeed * dt;
+        boss.position.y = groundHeightFn(boss.position.x, boss.position.z);
+        moving = true;
+      }
+    }
+  } else if (u.attackState === 'winding') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= melee.windup) { u.attackState = 'punching'; u.attackTimer = 0; }
+  } else if (u.attackState === 'punching') {
+    u.attackTimer += dt;
+    if (!u.hasHitThisSwing && u.attackTimer >= 0.08) {
+      u.hasHitThisSwing = true;
+      if (boss.position.distanceTo(playerPos) < melee.range) {
+        onMeleeHit(new THREE.Vector3().subVectors(playerPos, boss.position).setY(0).normalize(), melee);
+      }
+    }
+    if (u.attackTimer >= melee.active) { u.attackState = 'recover'; u.attackTimer = 0; }
+  } else if (u.attackState === 'recover') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= melee.recover) { u.attackState = 'chase'; u.attackTimer = 0; }
+
+  } else if (u.attackState === 'windA') {
+    u.attackTimer += dt;
+    if (specialA.type === 'dash') boss.lookAt(playerPos.x, boss.position.y, playerPos.z);
+    if (u.attackTimer >= specialA.windup) {
+      u.attackState = 'activeA'; u.attackTimer = 0; u.hasHitThisSwing = false;
+      if (specialA.type === 'dash') u.chargeDir.copy(toPlayer).normalize();
+    }
+  } else if (u.attackState === 'activeA') {
+    u.attackTimer += dt;
+    resolveSpecialActive(boss, u, specialA, dt, playerPos, groundHeightFn, onSpecialAHit, (m) => { moving = m; });
+    if (u.attackTimer >= specialA.active) { u.attackState = 'recoverA'; u.attackTimer = 0; }
+  } else if (u.attackState === 'recoverA') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= specialA.recover) { u.attackState = 'chase'; u.attackTimer = 0; }
+
+  } else if (u.attackState === 'windB') {
+    u.attackTimer += dt;
+    if (specialB.type === 'dash') boss.lookAt(playerPos.x, boss.position.y, playerPos.z);
+    if (u.attackTimer >= specialB.windup) {
+      u.attackState = 'activeB'; u.attackTimer = 0; u.hasHitThisSwing = false;
+      if (specialB.type === 'dash') u.chargeDir.copy(toPlayer).normalize();
+    }
+  } else if (u.attackState === 'activeB') {
+    u.attackTimer += dt;
+    resolveSpecialActive(boss, u, specialB, dt, playerPos, groundHeightFn, onSpecialBHit, (m) => { moving = m; });
+    if (u.attackTimer >= specialB.active) { u.attackState = 'recoverB'; u.attackTimer = 0; }
+  } else if (u.attackState === 'recoverB') {
+    u.attackTimer += dt;
+    if (u.attackTimer >= specialB.recover) { u.attackState = 'chase'; u.attackTimer = 0; }
+  }
+
+  animateBossGeneric(boss, dt, moving, melee, specialA, specialB);
+}
+
+// generic pose-by-move-type animation, shared across every boss regardless of skin/planet
+function poseForMoveType(u, type, t, phase) {
+  if (type === 'aoe') {
+    if (phase === 'wind') {
+      u.armL.shoulder.rotation.x = -2.6 * t; u.armR.shoulder.rotation.x = -2.6 * t;
+      u.armL.elbow.rotation.x = -0.7 * t; u.armR.elbow.rotation.x = -0.7 * t;
+      u.body.rotation.x = -0.15 * t;
+    } else if (phase === 'active') {
+      u.armL.shoulder.rotation.x = -2.6 + t * 4.0; u.armR.shoulder.rotation.x = -2.6 + t * 4.0;
+      u.armL.elbow.rotation.x = -0.7 + t * 0.8; u.armR.elbow.rotation.x = -0.7 + t * 0.8;
+      u.body.rotation.x = -0.15 + t * 0.4;
+    } else {
+      u.armL.shoulder.rotation.x = (1 - t) * 1.4; u.armR.shoulder.rotation.x = (1 - t) * 1.4;
+      u.armL.elbow.rotation.x = (1 - t) * 0.1; u.armR.elbow.rotation.x = (1 - t) * 0.1;
+      u.body.rotation.x = (1 - t) * 0.25;
+    }
+  } else if (type === 'dash') {
+    if (phase === 'wind') {
+      u.body.rotation.x = t * 0.35;
+      u.armL.shoulder.rotation.x = t * 1.1; u.armR.shoulder.rotation.x = t * 1.1;
+    } else if (phase === 'active') {
+      const swing = Math.sin(performance.now() * 0.028) * 0.6;
+      u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
+      u.body.rotation.x = 0.35;
+      u.armL.shoulder.rotation.x = 1.1; u.armR.shoulder.rotation.x = 1.1;
+    } else {
+      u.body.rotation.x = (1 - t) * 0.35;
+      u.armL.shoulder.rotation.x = (1 - t) * 1.1; u.armR.shoulder.rotation.x = (1 - t) * 1.1;
+    }
+  } else if (type === 'projectile') {
+    if (phase === 'wind') {
+      u.armL.shoulder.rotation.x = -1.6 * t; u.armR.shoulder.rotation.x = -1.6 * t;
+      u.armL.shoulder.rotation.z = 0.4 * t; u.armR.shoulder.rotation.z = -0.4 * t;
+    } else if (phase === 'active') {
+      u.armL.shoulder.rotation.x = -1.6 + t * 0.5; u.armR.shoulder.rotation.x = -1.6 + t * 0.5;
+    } else {
+      u.armL.shoulder.rotation.x = (1 - t) * -1.1; u.armR.shoulder.rotation.x = (1 - t) * -1.1;
+      u.armL.shoulder.rotation.z = 0; u.armR.shoulder.rotation.z = 0;
+    }
+  }
+}
+
+function animateBossGeneric(boss, dt, moving, melee, specialA, specialB) {
+  const u = boss.userData;
+  const st = u.attackState;
+  if (st === 'burst') {
+    const t = Math.min(1, u.attackTimer / 0.5);
+    u.armL.shoulder.rotation.x = -2.0 * (1 - t * 0.6);
+    u.armR.shoulder.rotation.x = -2.0 * (1 - t * 0.6);
+  } else if (st === 'chase') {
+    u.walkT += dt * (moving ? 5 : 1.5);
+    const swing = moving ? Math.sin(u.walkT) * 0.5 : 0;
+    u.legL.rotation.x = swing; u.legR.rotation.x = -swing;
+    u.armL.shoulder.rotation.x += (-swing * 0.4 - u.armL.shoulder.rotation.x) * Math.min(1, dt * 8);
+    u.armR.shoulder.rotation.x += (swing * 0.4 - u.armR.shoulder.rotation.x) * Math.min(1, dt * 8);
+    u.armR.elbow.rotation.x += (0 - u.armR.elbow.rotation.x) * Math.min(1, dt * 8);
+    u.body.rotation.x += (0 - u.body.rotation.x) * Math.min(1, dt * 6);
+  } else if (st === 'winding') {
+    const t = Math.min(1, u.attackTimer / melee.windup);
+    u.armR.shoulder.rotation.x = -t * 2.4; u.armR.elbow.rotation.x = -t * 0.8; u.armL.shoulder.rotation.x = t * 0.3;
+  } else if (st === 'punching') {
+    const t = Math.min(1, u.attackTimer / melee.active);
+    u.armR.shoulder.rotation.x = -2.4 + t * 3.4; u.armR.elbow.rotation.x = -0.8 + t * 0.9;
+  } else if (st === 'recover') {
+    const t = Math.min(1, u.attackTimer / melee.recover);
+    u.armR.shoulder.rotation.x = (1 - t) * 1.0; u.armR.elbow.rotation.x = (1 - t) * 0.1; u.armL.shoulder.rotation.x = (1 - t) * 0.3;
+  } else if (st === 'windA' || st === 'windB') {
+    const move = st === 'windA' ? specialA : specialB;
+    poseForMoveType(u, move.type, Math.min(1, u.attackTimer / move.windup), 'wind');
+  } else if (st === 'activeA' || st === 'activeB') {
+    const move = st === 'activeA' ? specialA : specialB;
+    poseForMoveType(u, move.type, Math.min(1, u.attackTimer / move.active), 'active');
+  } else if (st === 'recoverA' || st === 'recoverB') {
+    const move = st === 'recoverA' ? specialA : specialB;
+    poseForMoveType(u, move.type, Math.min(1, u.attackTimer / move.recover), 'recover');
+  }
+  const flick = 0.7 + Math.sin(performance.now() * 0.006) * 0.3;
+  u.eyeL.material.color.setRGB(flick, 0.08, 0.08);
+  u.eyeR.material.color.setRGB(flick, 0.08, 0.08);
+}
+
 function updateGroundEnemy(enemy, dt, playerPos, groundHeightFn, onShoot) {
   const u = enemy.userData;
   if (!u.alive) return;

@@ -597,8 +597,11 @@ function openCodes() {
     if (entry.reward === 'coins') {
       state.coins += entry.amount;
       ui.updateCoins(state.coins);
+      feedback.textContent = `Code accepted! +${entry.amount} Coins`;
+    } else if (entry.reward === 'unlockAll') {
+      PLANET_ID_LIST.forEach((id) => { state.planets[id].unlocked = true; });
+      feedback.textContent = 'Code accepted! Every world is now unlocked.';
     }
-    feedback.textContent = `Code accepted! +${entry.amount} Coins`;
     feedback.style.color = '#7fff9e';
     saveGame();
     sfx.win();
@@ -758,6 +761,12 @@ function updateGroundCombat(dt) {
         },
         onChargeHit: (dir) => applyYetiHit(e.userData.chargeDamage, dir, e, () => sfx.yetiChargeHit(), 6),
       });
+    } else if (e.userData.kind === 'boss') {
+      updateBossGeneric(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), {
+        onMeleeHit: (dir, move) => applyBossMoveHit(b, e, move, dir),
+        onSpecialAHit: (dir, move) => applyBossMoveHit(b, e, move, dir),
+        onSpecialBHit: (dir, move) => applyBossMoveHit(b, e, move, dir),
+      });
     } else {
       updateGroundEnemy(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), (origin, dir) => {
         const p = createProjectile(origin, dir, { color: 0xff5050, speed: 20, damage: 8, owner: 'enemy', life: 2.5 });
@@ -782,20 +791,23 @@ function updateGroundCombat(dt) {
         b.scene.remove(p); b.projectiles.splice(i, 1); hit = true;
         if (e.userData.hp <= 0) {
           const isYeti = e.userData.kind === 'yeti';
+          const isBoss = isYeti || e.userData.kind === 'boss';
+          const bossLabel = isYeti ? 'YETI' : e.userData.displayName;
           e.userData.alive = false;
           if (!e.userData.noRespawn) e.userData.respawnAt = elapsed + 25;
-          b.explosions.push(createExplosion(b.scene, e.position, isYeti ? 0xbfe8ff : 0xffaa33, isYeti ? 30 : 16));
+          b.explosions.push(createExplosion(b.scene, e.position, isYeti ? 0xbfe8ff : (e.userData.deathColor || 0xffaa33), isBoss ? 30 : 16));
           b.scene.remove(e);
-          const coinGain = isYeti ? (60 + Math.floor(Math.random() * 40)) : (8 + Math.floor(Math.random() * 10));
+          const coinGain = isBoss ? (60 + Math.floor(Math.random() * 40)) : (8 + Math.floor(Math.random() * 10));
           state.coins += coinGain;
           sfx.explosion();
           progressKill(currentPlanetId, missionToast);
+          const killText = isBoss ? `${bossLabel} DEFEATED!` : 'Raider down!';
           if (e.userData.secretRoom && b.secretRoom) {
             b.secretRoom.remaining -= 1;
-            ui.showToast(`${isYeti ? 'YETI DEFEATED!' : 'Raider down!'} +${coinGain} Coins (${b.secretRoom.remaining} left)`);
+            ui.showToast(`${killText} +${coinGain} Coins (${b.secretRoom.remaining} left)`);
             if (b.secretRoom.remaining <= 0) resolveSecretRoom(b);
           } else {
-            ui.showToast(`${isYeti ? 'YETI DEFEATED!' : 'Raider down!'} +${coinGain} Coins`);
+            ui.showToast(`${killText} +${coinGain} Coins`);
           }
         } else {
           sfx.hit();
@@ -838,6 +850,44 @@ function applyYetiHit(dmg, dir, e, hitSfx, knockback) {
     player.mesh.position.x += dir.x * knockback;
     player.mesh.position.z += dir.z * knockback;
   }
+}
+
+// generic (non-yeti) boss damage: a normal knockout, no special execution cutscene
+function applyBossDamage(dmg, dir, knockback) {
+  if (deathSequence) return;
+  state.health -= dmg;
+  ui.updateHealth(state.health, state.maxHealth);
+  if (state.health <= 0) {
+    respawnPlayer();
+  } else if (dir) {
+    player.mesh.position.x += dir.x * knockback;
+    player.mesh.position.z += dir.z * knockback;
+  }
+}
+
+// dispatches a landed boss move: ranged moves spawn real projectiles toward the player,
+// everything else (melee/aoe/dash) is direct damage + knockback with type-appropriate feedback
+function applyBossMoveHit(b, boss, move, dir) {
+  if (move.type === 'projectile') {
+    const originPos = boss.position.clone(); originPos.y += 2.4;
+    const count = move.count || 3;
+    for (let i = 0; i < count; i++) {
+      const spread = move.spread || 0.2;
+      const d = dir.clone();
+      d.applyAxisAngle(new THREE.Vector3(0, 1, 0), (i - (count - 1) / 2) * spread);
+      const p = createProjectile(originPos, d, { color: move.particleColor || 0xff8844, speed: move.projSpeed || 22, damage: move.damage, owner: 'enemy', life: 3 });
+      b.scene.add(p);
+      b.enemyProjectiles.push(p);
+    }
+    sfx.enemyShoot();
+    return;
+  }
+  if (move.type === 'aoe') {
+    b.explosions.push(createExplosion(b.scene, boss.position, move.particleColor || 0xffaa33, 24));
+  }
+  const hitSfx = sfx[move.sfxKey] || sfx.hit;
+  hitSfx();
+  applyBossDamage(move.damage, dir, move.knockback || 3);
 }
 
 function startYetiExecution(yeti) {
@@ -929,7 +979,7 @@ function updateSecretRoom() {
     return;
   }
   if (sr.boss && !sr.boss.triggered && elapsed >= sr.boss.burstAt) {
-    burstYetiWall(b, sr);
+    burstBossWall(b, sr);
   }
 }
 
@@ -956,21 +1006,23 @@ function triggerSecretRoom(b, sr) {
   }
 }
 
-function burstYetiWall(b, sr) {
+function burstBossWall(b, sr) {
   const boss = sr.boss;
   boss.triggered = true;
   boss.wallPanel.visible = false;
-  b.explosions.push(createExplosion(b.scene, boss.wallPanel.position, 0xbfe8ff, 26));
+  const burstColor = boss.type === 'yeti' ? 0xbfe8ff : (BOSSES[boss.type] ? BOSSES[boss.type].accentColor : 0xffaa33);
+  b.explosions.push(createExplosion(b.scene, boss.wallPanel.position, burstColor, 26));
   sfx.wallSmash();
   sfx.yetiRoar();
-  const yeti = createYetiBoss(boss.spawnPos);
-  yeti.userData.secretRoom = true;
-  yeti.userData.noRespawn = true;
-  b.scene.add(yeti);
-  b.enemies.push(yeti);
-  boss.enemyRef = yeti;
+  const enemy = boss.type === 'yeti' ? createYetiBoss(boss.spawnPos) : createBossEnemy(boss.spawnPos, BOSSES[boss.type]);
+  enemy.userData.secretRoom = true;
+  enemy.userData.noRespawn = true;
+  b.scene.add(enemy);
+  b.enemies.push(enemy);
+  boss.enemyRef = enemy;
   sr.remaining += 1;
-  ui.showBigMessage('A YETI BURSTS THROUGH THE WALL!', 'Watch out for its fists!', 2600);
+  const label = boss.type === 'yeti' ? 'YETI' : BOSSES[boss.type].name;
+  ui.showBigMessage(`${label} BURSTS THROUGH THE WALL!`, 'This is going to hurt.', 2600);
 }
 
 function resolveSecretRoom(b) {
@@ -978,12 +1030,13 @@ function resolveSecretRoom(b) {
   sr.resolved = true;
   sr.doorMesh.userData.state = 'open';
   state.planets[currentPlanetId].secretRoomDone = true;
-  const coinGain = 250;
+  const toolGain = 3 + Math.floor(currentPlanetId / 4);
+  const coinGain = 200 + currentPlanetId * 25;
   state.coins += coinGain;
-  state.inventory.tools += 3;
+  state.inventory.tools += toolGain;
   saveGame();
   sfx.win();
-  ui.showBigMessage('VAULT CLEARED!', `The blast door opens. +${coinGain} Coins, +3 Repair Tools`, 3800);
+  ui.showBigMessage('VAULT CLEARED!', `The blast door opens. +${coinGain} Coins, +${toolGain} Repair Tools`, 3800);
 }
 
 // ===================== MAIN LOOP =====================
@@ -1065,7 +1118,8 @@ function tick() {
   const bossEnemy = mode === 'planet' && inCave && activeBuild.secretRoom && activeBuild.secretRoom.boss
     ? activeBuild.secretRoom.boss.enemyRef : null;
   if (bossEnemy && bossEnemy.userData.alive) {
-    ui.showBossHealth(true, 'YETI', bossEnemy.userData.hp, bossEnemy.userData.maxHp);
+    const bossName = bossEnemy.userData.kind === 'yeti' ? 'YETI' : bossEnemy.userData.displayName;
+    ui.showBossHealth(true, bossName, bossEnemy.userData.hp, bossEnemy.userData.maxHp);
   } else {
     ui.showBossHealth(false);
   }
