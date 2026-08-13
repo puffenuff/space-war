@@ -1,4 +1,23 @@
 
+// per-theme ambient weather look: falling snow/ash/dust on most worlds, rising bubbles/spores
+// on the reef and toxic worlds for variety. Keyed by planet.theme, one entry per planet.
+const WEATHER_BY_THEME = {
+  desert: { color: 0xd8b98a, count: 60, fallSpeed: 0.6, size: 1.6, rising: false, sway: 0.6 },
+  ice: { color: 0xffffff, count: 140, fallSpeed: 3.2, size: 1.4, rising: false, sway: 0.9 },
+  volcanic: { color: 0xff8a3a, count: 90, fallSpeed: 1.0, size: 1.5, rising: false, sway: 0.4 },
+  jungle: { color: 0xcfffb0, count: 80, fallSpeed: 0.5, size: 1.3, rising: false, sway: 1.1 },
+  swamp: { color: 0x9fc27a, count: 70, fallSpeed: 0.4, size: 1.3, rising: false, sway: 0.8 },
+  canyon: { color: 0xe0c090, count: 55, fallSpeed: 0.7, size: 1.5, rising: false, sway: 0.7 },
+  crystal: { color: 0xff9dff, count: 90, fallSpeed: 0.35, size: 1.6, rising: false, sway: 0.6 },
+  storm: { color: 0xaeccff, count: 220, fallSpeed: 9.0, size: 1.2, rising: false, sway: 0.2 },
+  lunar: { color: 0xcfcfd8, count: 40, fallSpeed: 0.5, size: 1.3, rising: false, sway: 0.3 },
+  reef: { color: 0xbfffef, count: 90, fallSpeed: 1.6, size: 1.4, rising: true, sway: 0.5 },
+  ashlands: { color: 0x9a9088, count: 100, fallSpeed: 1.2, size: 1.5, rising: false, sway: 0.5 },
+  crimson: { color: 0xff8a7a, count: 75, fallSpeed: 0.6, size: 1.5, rising: false, sway: 0.6 },
+  toxic: { color: 0xbaff5a, count: 85, fallSpeed: 1.1, size: 1.5, rising: true, sway: 0.7 },
+  alien: { color: 0xd9a8ff, count: 90, fallSpeed: 0.5, size: 1.5, rising: false, sway: 0.9 },
+};
+
 function seededRand(seed) {
   let s = seed;
   return () => {
@@ -273,6 +292,52 @@ function buildPlanetScene(planetId) {
   sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
   sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
   scene.add(sun);
+
+  // ---- sky dressing: distant stars + a glowing sun/moon so every world reads as a real vista,
+  // not just a fogged-out patch of ground - cheap (one draw call each), works on every planet ----
+  const starGeo = new THREE.BufferGeometry();
+  const starCount = 260;
+  const starPositions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const theta = rand() * Math.PI * 2;
+    const phi = rand() * Math.PI * 0.45;
+    const r = 900 + rand() * 200;
+    starPositions[i * 3] = Math.cos(theta) * Math.sin(phi) * r;
+    starPositions[i * 3 + 1] = Math.cos(phi) * r * 0.6 + 120;
+    starPositions[i * 3 + 2] = Math.sin(theta) * Math.sin(phi) * r;
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.55, fog: false });
+  const stars = new THREE.Points(starGeo, starMat);
+  scene.add(stars);
+
+  const sunGlowColor = new THREE.Color(planet.outfitColor).lerp(new THREE.Color(0xffffff), 0.45);
+  const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ color: sunGlowColor, transparent: true, opacity: 0.85, fog: false }));
+  sunSprite.scale.set(90, 90, 1);
+  sunSprite.position.set(300, 260, -400);
+  scene.add(sunSprite);
+  const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xdcdefc, transparent: true, opacity: 0.5, fog: false }));
+  moonSprite.scale.set(38, 38, 1);
+  moonSprite.position.set(-380, 300, 250);
+  scene.add(moonSprite);
+
+  // ---- ambient weather, themed per planet (falling snow/ash/dust, rising bubbles/spores...) ----
+  const weatherCfg = (WEATHER_BY_THEME[planet.theme] || WEATHER_BY_THEME.desert);
+  const weatherRadius = planet.size * 0.42;
+  const weatherHeight = 60;
+  const weatherGeo = new THREE.BufferGeometry();
+  const weatherPositions = new Float32Array(weatherCfg.count * 3);
+  const weatherSeeds = new Float32Array(weatherCfg.count);
+  for (let i = 0; i < weatherCfg.count; i++) {
+    weatherPositions[i * 3] = (rand() - 0.5) * weatherRadius * 2;
+    weatherPositions[i * 3 + 1] = rand() * weatherHeight;
+    weatherPositions[i * 3 + 2] = (rand() - 0.5) * weatherRadius * 2;
+    weatherSeeds[i] = rand() * 100;
+  }
+  weatherGeo.setAttribute('position', new THREE.BufferAttribute(weatherPositions, 3));
+  const weatherMat = new THREE.PointsMaterial({ color: weatherCfg.color, size: weatherCfg.size, transparent: true, opacity: 0.7, depthWrite: false });
+  const weatherPoints = new THREE.Points(weatherGeo, weatherMat);
+  scene.add(weatherPoints);
 
   // ---- find a steep hillside for the mineshaft first (using the raw, unflattened height),
   // so the terrain built below can be shaped around it instead of the entrance getting
@@ -1179,6 +1244,17 @@ function buildPlanetScene(planetId) {
     caveEnemySpawns,
     secretRoom,
     tick(dt, t) {
+      stars.rotation.y += dt * 0.003;
+      const dir = weatherCfg.rising ? 1 : -1;
+      const posAttr = weatherGeo.attributes.position;
+      for (let i = 0; i < weatherCfg.count; i++) {
+        let wy = posAttr.getY(i) + dir * weatherCfg.fallSpeed * dt;
+        if (weatherCfg.rising && wy > weatherHeight) wy = 0;
+        if (!weatherCfg.rising && wy < 0) wy = weatherHeight;
+        posAttr.setY(i, wy);
+        posAttr.setX(i, posAttr.getX(i) + Math.sin(t * 0.5 + weatherSeeds[i]) * weatherCfg.sway * dt);
+      }
+      posAttr.needsUpdate = true;
       if (secretRoom) {
         const dm = secretRoom.doorMesh;
         const targetY = dm.userData.state === 'closed' ? dm.userData.closedY : dm.userData.openY;

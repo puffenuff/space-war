@@ -13,7 +13,7 @@ function freshState() {
     maxHealth: 100,
     inventory: { scrap: 0, tools: 0, food: 0 },
     upgrades: { speed: 0, jump: 0, damage: 0, hull: 0 }, // each level 0-3
-    rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false },
+    rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false, heatShield: false, guidanceCore: false },
     planets,
     outfitsFound: {},
     equippedSuitColor: null,
@@ -45,6 +45,9 @@ function loadGame() {
     Object.assign(state, fresh, parsed);
     // deep-merge planets so an older save (fewer worlds) doesn't wipe out newly added planets
     state.planets = Object.assign({}, fresh.planets, parsed.planets || {});
+    // same deal for rocketParts - an older save with fewer part types would otherwise wipe out
+    // newly added ones (they'd end up undefined instead of false)
+    state.rocketParts = Object.assign({}, fresh.rocketParts, parsed.rocketParts || {});
     return true;
   } catch (e) {
     return false;
@@ -60,11 +63,11 @@ function rocketPartsCount() {
 }
 
 function rocketReady() {
-  return rocketPartsCount() >= 4;
+  return rocketPartsCount() >= 6;
 }
 
 function consumeRocketParts() {
-  state.rocketParts = { engine: false, fuelTank: false, noseCone: false, fins: false };
+  state.rocketParts = { engine: false, fuelTank: false, noseCone: false, fins: false, heatShield: false, guidanceCore: false };
 }
 
 const UPGRADE_INFO = {

@@ -364,7 +364,7 @@ function promptLabelFor(obj) {
   if (mode === 'base') {
     const d = obj.userData;
     if (d.type === 'shop') return `Enter ${d.label}`;
-    if (d.type === 'launchPad') return rocketReady() ? 'Assemble & Launch Rocket' : `Launch Pad (${rocketPartsCount()}/4 parts)`;
+    if (d.type === 'launchPad') return rocketReady() ? 'Assemble & Launch Rocket' : `Launch Pad (${rocketPartsCount()}/${Object.keys(state.rocketParts).length} parts)`;
     if (d.type === 'starMap') return 'Open Star Map';
     if (d.type === 'vehicle') return 'Enter Rover';
     if (d.type === 'wardrobe') return 'Change Outfit';
@@ -649,7 +649,8 @@ function tryLaunch() {
     return;
   }
   if (!rocketReady()) {
-    ui.showToast(`Need ${4 - rocketPartsCount()} more rocket part(s)! (${rocketPartsCount()}/4)`);
+    const totalParts = Object.keys(state.rocketParts).length;
+    ui.showToast(`Need ${totalParts - rocketPartsCount()} more rocket part(s)! (${rocketPartsCount()}/${totalParts})`);
     sfx.denied();
     return;
   }
@@ -1034,9 +1035,10 @@ function resolveSecretRoom(b) {
   const coinGain = 200 + currentPlanetId * 25;
   state.coins += coinGain;
   state.inventory.tools += toolGain;
+  state.rocketParts.guidanceCore = true;
   saveGame();
   sfx.win();
-  ui.showBigMessage('VAULT CLEARED!', `The blast door opens. +${coinGain} Coins, +${toolGain} Repair Tools`, 3800);
+  ui.showBigMessage('VAULT CLEARED!', `The blast door opens. +${coinGain} Coins, +${toolGain} Repair Tools, Guidance Core acquired!`, 3800);
 }
 
 // ===================== MAIN LOOP =====================

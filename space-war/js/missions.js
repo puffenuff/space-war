@@ -20,7 +20,10 @@ function rewardText(reward) {
 }
 
 function labelForPart(part) {
-  return { engine: 'Engine', fuelTank: 'Fuel Tank', noseCone: 'Nose Cone', fins: 'Fins' }[part] || part;
+  return {
+    engine: 'Engine', fuelTank: 'Fuel Tank', noseCone: 'Nose Cone', fins: 'Fins',
+    heatShield: 'Heat Shield', guidanceCore: 'Guidance Core',
+  }[part] || part;
 }
 
 function applyReward(reward) {
@@ -36,7 +39,11 @@ function completeMission(planetId, missionId, toast) {
   const def = MISSIONS[planetId].find((m) => m.id === missionId);
   prog.done = true;
   applyReward(def.reward);
-  const text = `Mission Complete: ${def.name}  ${rewardText(def.reward)}`;
+  let text = `Mission Complete: ${def.name}  ${rewardText(def.reward)}`;
+  if (allMissionsDone(planetId) && !state.rocketParts.heatShield) {
+    state.rocketParts.heatShield = true;
+    text += `  |  All missions done: Heat Shield acquired!`;
+  }
   if (toast) toast(text);
   return def;
 }
