@@ -28,7 +28,7 @@ function seededRand(seed) {
 
 function buildTerrain(planet, heightFn) {
   const size = planet.size;
-  const segs = Math.min(160, Math.round(70 + size / 8));
+  const segs = Math.min(220, Math.round(70 + size / 8));
   const geo = new THREE.PlaneGeometry(size, size, segs, segs);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
@@ -281,7 +281,12 @@ function buildPlanetScene(planetId) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(planet.sky);
-  scene.fog = new THREE.Fog(planet.fog, 40, planet.size * 0.85);
+  // fog draw distance is capped rather than scaled with planet.size - on a much bigger map
+  // that keeps rendering/decoration cost bounded (nothing needs to be drawn crisply far past
+  // this regardless of how big the map is) while the horizon skirt still makes the ground
+  // look like it continues past where the fog takes over
+  const fogFarDist = Math.min(planet.size * 0.85, 700);
+  scene.fog = new THREE.Fog(planet.fog, 40, fogFarDist);
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.55);
   scene.add(ambient);
@@ -323,7 +328,10 @@ function buildPlanetScene(planetId) {
 
   // ---- ambient weather, themed per planet (falling snow/ash/dust, rising bubbles/spores...) ----
   const weatherCfg = (WEATHER_BY_THEME[planet.theme] || WEATHER_BY_THEME.desert);
-  const weatherRadius = planet.size * 0.42;
+  // capped rather than scaled with planet.size - these are static positions (they don't
+  // follow the player), so scattering them across a map far bigger than the fog/view
+  // distance would just waste most of them where they're never seen
+  const weatherRadius = Math.min(planet.size * 0.42, 400);
   const weatherHeight = 60;
   const weatherGeo = new THREE.BufferGeometry();
   const weatherPositions = new Float32Array(weatherCfg.count * 3);
@@ -344,7 +352,7 @@ function buildPlanetScene(planetId) {
   // (any world - streaking objects falling from high up). Both fade in/out over a few seconds.
   const SANDSTORM_THEMES = ['desert', 'canyon', 'ashlands', 'volcanic', 'toxic'];
   const canSandstorm = SANDSTORM_THEMES.indexOf(planet.theme) !== -1;
-  const baseFogNear = 40, baseFogFar = planet.size * 0.85;
+  const baseFogNear = 40, baseFogFar = fogFarDist;
   const baseSkyColor = new THREE.Color(planet.sky);
   const baseFogColor = new THREE.Color(planet.fog);
   const sandstormColor = new THREE.Color(0xc9a066);
@@ -486,7 +494,7 @@ function buildPlanetScene(planetId) {
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
   const rockMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
-  const rockCount = Math.round(130 * (planet.size / 300));
+  const rockCount = Math.min(500, Math.round(130 * (planet.size / 300)));
   for (let i = 0; i < rockCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.9;
     const z = (rand() - 0.5) * planet.size * 0.9;
@@ -504,7 +512,7 @@ function buildPlanetScene(planetId) {
   // ---- scattered surface mineral crystal clusters, color-matched to this planet's outfit accent ----
   const surfaceCrystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.5, metalness: 0.3, roughness: 0.3 });
   const surfaceCrystalGeo = new THREE.ConeGeometry(0.35, 1, 5);
-  const surfaceCrystalCount = Math.round(30 * (planet.size / 300));
+  const surfaceCrystalCount = Math.min(90, Math.round(30 * (planet.size / 300)));
   for (let i = 0; i < surfaceCrystalCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.85;
     const z = (rand() - 0.5) * planet.size * 0.85;
@@ -529,7 +537,7 @@ function buildPlanetScene(planetId) {
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
     const canopyMat = new THREE.MeshStandardMaterial({ color: 0x2a6a2a, roughness: 0.95 });
     const canopyMat2 = new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.95 });
-    const treeCount = Math.round(100 * (planet.size / 300));
+    const treeCount = Math.min(350, Math.round(100 * (planet.size / 300)));
     for (let i = 0; i < treeCount; i++) {
       const x = (rand() - 0.5) * planet.size * 0.88;
       const z = (rand() - 0.5) * planet.size * 0.88;
@@ -588,7 +596,7 @@ function buildPlanetScene(planetId) {
   const coinPickups = [];
   const coinGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14);
   const coinMat = new THREE.MeshStandardMaterial({ color: 0xffd35e, metalness: 0.8, roughness: 0.25, emissive: 0x553d00, emissiveIntensity: 0.3 });
-  const coinCount = Math.round(15 * (planet.size / 300));
+  const coinCount = Math.min(60, Math.round(15 * (planet.size / 300)));
   for (let i = 0; i < coinCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.8;
     const z = (rand() - 0.5) * planet.size * 0.8;
