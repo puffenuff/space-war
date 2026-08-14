@@ -12,6 +12,7 @@ function showTitleScreen(show) {
 function showHUD(show) {
   $('hud').classList.toggle('hidden', !show);
   $('btn-missions').classList.toggle('hidden', !show);
+  $('btn-craft').classList.toggle('hidden', !show);
 }
 
 function setContinueEnabled(enabled) {

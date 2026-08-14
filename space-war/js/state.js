@@ -6,6 +6,8 @@ function freshState() {
   PLANET_ID_LIST.forEach((id) => {
     planets[id] = { unlocked: id === 1, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false, secretRoomDone: false, blueprintFound: false };
   });
+  const baseModules = {};
+  BASE_MODULES.forEach((m) => { baseModules[m.key] = false; });
   return {
     playerName: 'Billy Bob',
     coins: 40,
@@ -14,6 +16,7 @@ function freshState() {
     inventory: { scrap: 0, tools: 0, food: 0, ore: 0 },
     upgrades: { speed: 0, jump: 0, damage: 0, hull: 0 }, // each level 0-3
     rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false, heatShield: false, guidanceCore: false },
+    baseModules,
     planets,
     outfitsFound: {},
     equippedSuitColor: null,
@@ -57,6 +60,7 @@ function loadGame() {
     state.inventory = Object.assign({}, fresh.inventory, parsed.inventory || {});
     state.upgrades = Object.assign({}, fresh.upgrades, parsed.upgrades || {});
     state.weaponsOwned = Object.assign({}, fresh.weaponsOwned, parsed.weaponsOwned || {});
+    state.baseModules = Object.assign({}, fresh.baseModules, parsed.baseModules || {});
     return true;
   } catch (e) {
     return false;

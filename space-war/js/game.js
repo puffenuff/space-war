@@ -48,8 +48,12 @@ let elapsed = 0;
 let saveTimer = 0;
 
 // ===================== EFFECTS APPLICATION =====================
+function baseModuleHealthBonus() {
+  return BASE_MODULES.reduce((sum, m) => sum + (state.baseModules[m.key] ? m.healthBonus : 0), 0);
+}
+
 function applyUpgradeEffects() {
-  state.maxHealth = 100 + state.upgrades.hull * 25;
+  state.maxHealth = 100 + state.upgrades.hull * 25 + baseModuleHealthBonus();
   if (state.health > state.maxHealth) state.health = state.maxHealth;
   player.jumpPower = 8.4 + state.upgrades.jump * 2.0;
 }
@@ -1218,8 +1222,53 @@ function openMissionLog() {
   ui.openPanel(`📋 ${id ? PLANETS[id].name.toUpperCase() : ''} MISSIONS`, body);
 }
 
+// ===================== CRAFT / BASE BUILDING =====================
+function formatCraftCost(cost) {
+  return Object.entries(cost).map(([k, v]) => `${v} ${k}`).join(', ');
+}
+function canAffordCraftCost(cost) {
+  return Object.entries(cost).every(([k, v]) => (state.inventory[k] || 0) >= v);
+}
+
+function openCraft() {
+  const body = document.createElement('div');
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 8px;';
+  hint.textContent = `Build modules for the base with materials gathered out in the field. Have: ${state.inventory.ore} ore, ${state.inventory.scrap} scrap, ${state.inventory.tools} tools.`;
+  body.appendChild(hint);
+  BASE_MODULES.forEach((mod) => {
+    const built = !!state.baseModules[mod.key];
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `<div><div class="si-name">${mod.name}${built ? ' (Built)' : ''}</div><div class="si-desc">${mod.desc} &middot; +${mod.healthBonus} max health</div></div>`;
+    const btn = document.createElement('button');
+    if (built) {
+      btn.textContent = 'Built';
+      btn.disabled = true;
+    } else {
+      btn.textContent = formatCraftCost(mod.cost);
+      btn.disabled = !canAffordCraftCost(mod.cost);
+      btn.onclick = () => {
+        Object.entries(mod.cost).forEach(([k, v]) => { state.inventory[k] -= v; });
+        state.baseModules[mod.key] = true;
+        applyUpgradeEffects();
+        saveGame();
+        ui.updateOre(state.inventory.ore);
+        ui.updateHealth(state.health, state.maxHealth);
+        sfx.buy();
+        ui.showToast(`Built: ${mod.name}!  +${mod.healthBonus} Max Health`);
+        openCraft();
+      };
+    }
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+  ui.openPanel('🛠️ CRAFT', body);
+}
+
 // ===================== TITLE / BOOTSTRAP =====================
 document.getElementById('btn-missions').addEventListener('click', () => { sfx.uiClick(); openMissionLog(); });
+document.getElementById('btn-craft').addEventListener('click', () => { sfx.uiClick(); openCraft(); });
 ui.initPanelClose(() => { sfx.uiClick(); });
 
 document.getElementById('btn-mute').addEventListener('click', (e) => {

@@ -308,6 +308,19 @@ const CHEAT_CODES = {
   allworlds: { label: 'ALLWORLDS', desc: 'Unlocks every planet.', reward: 'unlockAll' },
 };
 
+// ===================== BASE MODULES (Craft menu - Space Crafter style base building) =====================
+// One-time builds that permanently expand the base's life support, paid for with ore/scrap/tools
+// gathered out in the field. Each built module adds a small permanent max-health bonus, so the
+// crafting loop feeds back into survivability instead of just being a checklist.
+const BASE_MODULES = [
+  { key: 'solarArray', name: 'Solar Array', desc: 'Clean power for the whole base.', cost: { ore: 15, scrap: 8 }, healthBonus: 10 },
+  { key: 'waterReclaimer', name: 'Water Reclaimer', desc: 'Recycles water for life support.', cost: { ore: 12, tools: 6 }, healthBonus: 10 },
+  { key: 'greenhouseDome', name: 'Greenhouse Dome', desc: 'Grows food to keep the crew fed.', cost: { ore: 18, scrap: 10 }, healthBonus: 10 },
+  { key: 'commsArray', name: 'Comms Array', desc: 'Long-range antenna for contacting other worlds.', cost: { ore: 20, tools: 8 }, healthBonus: 10 },
+  { key: 'medBay', name: 'Med Bay', desc: 'A full medical suite for emergencies.', cost: { ore: 25, scrap: 12, tools: 6 }, healthBonus: 15 },
+  { key: 'shieldGenerator', name: 'Shield Generator', desc: 'Deflects debris and raiders alike.', cost: { ore: 30, scrap: 15, tools: 10 }, healthBonus: 15 },
+];
+
 // ===================== SECRET VAULT BOSSES (one per planet, except Cryovale's bespoke yeti) =====================
 // Every boss shares the same jointed humanoid rig (see createBossEnemy in enemies.js) and is driven
 // by a data-defined moveset instead of custom code - only colors, a decoration kit, and the specific
