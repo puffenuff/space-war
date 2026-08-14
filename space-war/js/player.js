@@ -1,11 +1,15 @@
 
 // ===================== CAMERA ORBIT STATE (shared across scenes) =====================
-const camState = { yaw: 0, pitch: 0.42, distance: 9 };
+// pitch: chase-camera orbit elevation (third person). fpPitch: true up/down look angle,
+// tracked separately so first-person view isn't limited to the chase camera's narrow elevation range
+const camState = { yaw: 0, pitch: 0.42, fpPitch: 0, distance: 9 };
 
 function applyLookInput(sensitivity = 0.006) {
   camState.yaw -= input.lookDX * sensitivity;
   camState.pitch -= input.lookDY * sensitivity * 0.7;
   camState.pitch = Math.max(0.08, Math.min(1.25, camState.pitch));
+  camState.fpPitch -= input.lookDY * sensitivity;
+  camState.fpPitch = Math.max(-1.3, Math.min(1.3, camState.fpPitch));
 }
 
 function updateThirdPersonCamera(camera, target, dt, distance = camState.distance, heightOffset = 1.6) {
@@ -18,6 +22,20 @@ function updateThirdPersonCamera(camera, target, dt, distance = camState.distanc
   const lerpT = 1 - Math.pow(0.0001, dt);
   camera.position.lerp(desired, lerpT);
   camera.lookAt(target.x, target.y + heightOffset * 0.7, target.z);
+}
+
+// same yaw convention as the chase camera (forward = away from where the chase camera sits),
+// so look direction stays consistent whichever view you're in - fpPitch lets you look up at
+// the sky/planets or down at your feet, independent of the chase camera's own pitch
+function updateFirstPersonCamera(camera, target, eyeHeight = 1.6) {
+  const yaw = camState.yaw, pitch = camState.fpPitch;
+  const dir = new THREE.Vector3(
+    -Math.sin(yaw) * Math.cos(pitch),
+    Math.sin(pitch),
+    -Math.cos(yaw) * Math.cos(pitch)
+  );
+  camera.position.set(target.x, target.y + eyeHeight, target.z);
+  camera.lookAt(target.x + dir.x, target.y + eyeHeight + dir.y, target.z + dir.z);
 }
 
 // ===================== ASTRONAUT MESH =====================
@@ -163,7 +181,26 @@ function createAstronaut(suitColor = 0xe8e8e8) {
   gunMount.position.set(0.16, -0.56, 0.06);
   armR.add(gunMount);
 
-  group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gunMount, weaponMesh: null, chestLight, visor, flameMat: [flameL.material, flameR.material] };
+  // mining tool — a pickaxe permanently carried in the off-hand, mirroring the gun mount
+  const toolMount = new THREE.Group();
+  toolMount.position.set(-0.16, -0.56, 0.06);
+  armL.add(toolMount);
+  const toolHandleMat = new THREE.MeshStandardMaterial({ color: 0x5a4530, roughness: 0.8 });
+  const toolHeadMat = new THREE.MeshStandardMaterial({ color: 0x9aa2ad, metalness: 0.7, roughness: 0.3 });
+  const toolHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.56, 8), toolHandleMat);
+  toolHandle.position.y = 0.02;
+  toolMount.add(toolHandle);
+  const pickCrossbar = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.08), toolHeadMat);
+  pickCrossbar.position.y = 0.3;
+  toolMount.add(pickCrossbar);
+  [-1, 1].forEach((side) => {
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.24, 4), toolHeadMat);
+    tip.rotation.z = side * Math.PI / 2 + Math.PI / 2;
+    tip.position.set(side * 0.36, 0.3, 0);
+    toolMount.add(tip);
+  });
+
+  group.userData = { body, head, armL, armR, legL, legR, flameL, flameR, gunMount, toolMount, weaponMesh: null, chestLight, visor, flameMat: [flameL.material, flameR.material] };
   return group;
 }
 
@@ -363,10 +400,10 @@ class Player {
       u.weaponMesh.position.z = -this.recoil * 0.12;
     }
 
-    // digging animation
+    // digging animation - swings the pickaxe arm, not the gun arm
     if (this.digging) {
       u.body.rotation.x = 0.5 + Math.sin(performance.now() * 0.02) * 0.1;
-      u.armR.rotation.x = -1.2 + Math.sin(performance.now() * 0.03) * 0.4;
+      u.armL.rotation.x = -1.2 + Math.sin(performance.now() * 0.03) * 0.4;
     } else {
       u.body.rotation.x += (0 - u.body.rotation.x) * Math.min(1, dt * 8);
     }

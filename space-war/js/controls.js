@@ -9,6 +9,7 @@ const input = {
   interactHeld: false,
   sprintHeld: false,
   reloadPressed: false,
+  viewTogglePressed: false,
 };
 
 const keys = {};
@@ -17,6 +18,7 @@ let kbFire = false, mouseFire = false, touchFire = false;
 let kbInteract = false, touchInteract = false;
 let kbSprint = false, touchSprint = false;
 let kbReload = false, touchReload = false;
+let kbView = false, touchView = false;
 
 function isTouchDevice() { return isTouch; }
 
@@ -30,6 +32,7 @@ function initControls(canvas) {
     if (e.code === 'KeyE') { if (!kbInteract) input.interactPressed = true; kbInteract = true; }
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') kbSprint = true;
     if (e.code === 'KeyR') { if (!kbReload) input.reloadPressed = true; kbReload = true; }
+    if (e.code === 'KeyV') { if (!kbView) input.viewTogglePressed = true; kbView = true; }
   });
   window.addEventListener('keyup', (e) => {
     if (isTypingTarget(e)) return;
@@ -38,6 +41,7 @@ function initControls(canvas) {
     if (e.code === 'KeyE') kbInteract = false;
     if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') kbSprint = false;
     if (e.code === 'KeyR') kbReload = false;
+    if (e.code === 'KeyV') kbView = false;
   });
 
   // ---- mouse look (drag) ----
@@ -129,6 +133,7 @@ function initControls(canvas) {
   bindHold('btn-fire', () => { if (!touchFire) input.firePressed = true; touchFire = true; }, () => { touchFire = false; });
   bindHold('btn-sprint', () => { touchSprint = true; }, () => { touchSprint = false; });
   bindHold('btn-reload', () => { if (!touchReload) input.reloadPressed = true; touchReload = true; }, () => { touchReload = false; });
+  bindHold('btn-view', () => { if (!touchView) input.viewTogglePressed = true; touchView = true; }, () => { touchView = false; });
 
   if (isTouch) {
     document.getElementById('touch-controls').classList.remove('hidden');
@@ -155,6 +160,7 @@ function consumeOneShots() {
   input.firePressed = false;
   input.interactPressed = false;
   input.reloadPressed = false;
+  input.viewTogglePressed = false;
   input.lookDX = 0;
   input.lookDY = 0;
 }

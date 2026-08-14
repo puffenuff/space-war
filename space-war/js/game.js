@@ -34,6 +34,7 @@ let baseBuild = null;
 const player = new Player({});
 let drivingVehicle = null; // { mesh, controller }
 let vehicleCtl = null;
+let firstPerson = false; // on-foot only - hides own head so it doesn't block the view
 
 let spaceFlight = null;
 
@@ -468,6 +469,7 @@ function enterVehicle(mesh) {
   mesh.rotation.y = player.heading;
   player.disabled = true;
   player.mesh.visible = false;
+  if (firstPerson) { firstPerson = false; player.mesh.userData.head.visible = true; player.mesh.userData.visor.visible = true; }
   sfx.enterVehicle();
 }
 
@@ -1136,9 +1138,15 @@ function tick() {
       input.interactPressed = false; // consume now, or the interactable check below sees you standing next to the car and re-enters it in the same frame
     }
   } else {
+    if (input.viewTogglePressed) {
+      firstPerson = !firstPerson;
+      player.mesh.userData.head.visible = !firstPerson;
+      player.mesh.userData.visor.visible = !firstPerson;
+    }
     player.update(dt, speedMultiplier());
     clampToWorldBoundary(player.mesh.position);
-    updateThirdPersonCamera(camera, player.mesh.position, dt);
+    if (firstPerson) updateFirstPersonCamera(camera, player.mesh.position);
+    else updateThirdPersonCamera(camera, player.mesh.position, dt);
   }
 
   // sky dressing (stars/sun/moon/other worlds) is parented under one group so it can be
