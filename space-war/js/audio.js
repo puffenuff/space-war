@@ -142,6 +142,10 @@ const sfx = {
     noiseBurst({ dur: 0.35, decay: 2.2, filterFreq: 1100, vol: 0.4 });
     tone(180, { type: 'sawtooth', dur: 0.3, vol: 0.2, slideTo: 40 });
   },
+  windGust() {
+    noiseBurst({ dur: 1.2, decay: 1.1, filterFreq: 350, vol: 0.3 });
+    noiseBurst({ dur: 0.9, decay: 1.4, filterFreq: 900, vol: 0.14, delay: 0.15 });
+  },
 };
 
 // ---- sustained rocket engine rumble (loops for the whole flight, not just a blip) ----

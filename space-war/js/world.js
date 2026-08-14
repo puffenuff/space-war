@@ -339,6 +339,82 @@ function buildPlanetScene(planetId) {
   const weatherPoints = new THREE.Points(weatherGeo, weatherMat);
   scene.add(weatherPoints);
 
+  // ---- occasional weather EVENTS layered on top of the constant ambient weather above:
+  // sandstorms (dusty worlds only - tints sky/fog and thickens the dust) and meteor showers
+  // (any world - streaking objects falling from high up). Both fade in/out over a few seconds.
+  const SANDSTORM_THEMES = ['desert', 'canyon', 'ashlands', 'volcanic', 'toxic'];
+  const canSandstorm = SANDSTORM_THEMES.indexOf(planet.theme) !== -1;
+  const baseFogNear = 40, baseFogFar = planet.size * 0.85;
+  const baseSkyColor = new THREE.Color(planet.sky);
+  const baseFogColor = new THREE.Color(planet.fog);
+  const sandstormColor = new THREE.Color(0xc9a066);
+  let weatherEvent = null;
+  let weatherEventCooldown = 30 + Math.random() * 40;
+  const meteors = [];
+  const meteorGeo = new THREE.ConeGeometry(0.4, 3.5, 6);
+  function spawnMeteor() {
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffcf6a, fog: false, transparent: true, opacity: 1 });
+    const m = new THREE.Mesh(meteorGeo, mat);
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * planet.size * 0.4;
+    m.position.set(Math.cos(a) * r, 220 + Math.random() * 80, Math.sin(a) * r);
+    const dir = new THREE.Vector3((Math.random() - 0.5) * 0.3, -1, (Math.random() - 0.5) * 0.3).normalize();
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    m.userData = { dir, speed: 90 + Math.random() * 40, life: 4 };
+    scene.add(m);
+    meteors.push(m);
+  }
+  function updateMeteors(dt) {
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const m = meteors[i];
+      m.position.addScaledVector(m.userData.dir, m.userData.speed * dt);
+      m.userData.life -= dt;
+      m.material.opacity = Math.max(0, Math.min(1, m.userData.life));
+      if (m.userData.life <= 0 || m.position.y < -20) {
+        scene.remove(m);
+        meteors.splice(i, 1);
+      }
+    }
+  }
+  function startWeatherEvent(type) {
+    weatherEvent = { type, timer: 0, duration: type === 'sandstorm' ? (18 + Math.random() * 12) : (14 + Math.random() * 10), nextMeteorAt: 0.4 };
+    if (type === 'sandstorm') {
+      sfx.windGust();
+      ui.showToast('A sandstorm rolls in...');
+    } else {
+      ui.showToast('A meteor shower streaks overhead!');
+    }
+  }
+  function updateWeatherEvent(dt) {
+    const we = weatherEvent;
+    we.timer += dt;
+    const strength = Math.max(0, Math.min(Math.min(1, we.timer / 3), Math.min(1, (we.duration - we.timer) / 3)));
+    if (we.type === 'sandstorm') {
+      scene.fog.color.copy(baseFogColor).lerp(sandstormColor, strength * 0.85);
+      scene.background.copy(baseSkyColor).lerp(sandstormColor, strength * 0.7);
+      scene.fog.near = baseFogNear * (1 - strength * 0.3);
+      scene.fog.far = baseFogFar * (1 - strength * 0.55);
+      weatherMat.opacity = 0.7 + strength * 0.3;
+      weatherMat.size = weatherCfg.size * (1 + strength * 1.4);
+    } else {
+      we.nextMeteorAt -= dt;
+      if (we.nextMeteorAt <= 0 && strength > 0.15) {
+        we.nextMeteorAt = 0.25 + Math.random() * 0.5;
+        spawnMeteor();
+      }
+    }
+    if (we.timer >= we.duration) {
+      if (we.type === 'sandstorm') {
+        scene.fog.color.copy(baseFogColor);
+        scene.background.copy(baseSkyColor);
+        scene.fog.near = baseFogNear; scene.fog.far = baseFogFar;
+        weatherMat.opacity = 0.7; weatherMat.size = weatherCfg.size;
+      }
+      weatherEvent = null;
+      weatherEventCooldown = 45 + Math.random() * 70;
+    }
+  }
+
   // ---- find a steep hillside for the mineshaft first (using the raw, unflattened height),
   // so the terrain built below can be shaped around it instead of the entrance getting
   // placed on top of a slope and swallowed by it ----
@@ -1255,6 +1331,18 @@ function buildPlanetScene(planetId) {
         posAttr.setX(i, posAttr.getX(i) + Math.sin(t * 0.5 + weatherSeeds[i]) * weatherCfg.sway * dt);
       }
       posAttr.needsUpdate = true;
+      updateMeteors(dt);
+      if (weatherEvent) {
+        updateWeatherEvent(dt);
+      } else {
+        weatherEventCooldown -= dt;
+        if (weatherEventCooldown <= 0) {
+          weatherEventCooldown = 60 + Math.random() * 90;
+          if (Math.random() < 0.5) {
+            startWeatherEvent(canSandstorm && Math.random() < 0.5 ? 'sandstorm' : 'meteorShower');
+          }
+        }
+      }
       if (secretRoom) {
         const dm = secretRoom.doorMesh;
         const targetY = dm.userData.state === 'closed' ? dm.userData.closedY : dm.userData.openY;
