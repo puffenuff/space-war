@@ -1137,6 +1137,14 @@ function tick() {
     updateThirdPersonCamera(camera, player.mesh.position, dt);
   }
 
+  // sky dressing (stars/sun/moon/other worlds) is parented under one group so it can be
+  // recentered on wherever the player currently is, like a skybox - otherwise on the big maps
+  // it's anchored near world origin and gets left behind once you wander from spawn
+  if (mode === 'planet' && !inCave && activeBuild.skyGroup) {
+    const trackPos = drivingVehicle ? drivingVehicle.position : player.mesh.position;
+    activeBuild.skyGroup.position.set(trackPos.x, 0, trackPos.z);
+  }
+
   if (deathSequence) updateYetiExecution(dt);
 
   if (!ui.isPanelOpen() && !deathSequence) {

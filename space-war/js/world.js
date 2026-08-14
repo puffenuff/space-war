@@ -300,8 +300,12 @@ function buildPlanetScene(planetId) {
   sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
   scene.add(sun);
 
-  // ---- sky dressing: distant stars + a glowing sun/moon so every world reads as a real vista,
-  // not just a fogged-out patch of ground - cheap (one draw call each), works on every planet ----
+  // ---- sky dressing: distant stars + a glowing sun/moon + other worlds, so every planet reads
+  // as a real vista - all parented under one group that game.js recenters on the player each
+  // frame (like a skybox), so it stays overhead no matter how far you wander on a big map ----
+  const skyGroup = new THREE.Group();
+  scene.add(skyGroup);
+
   const starGeo = new THREE.BufferGeometry();
   const starCount = 260;
   const starPositions = new Float32Array(starCount * 3);
@@ -316,17 +320,17 @@ function buildPlanetScene(planetId) {
   starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
   const starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0.55, fog: false });
   const stars = new THREE.Points(starGeo, starMat);
-  scene.add(stars);
+  skyGroup.add(stars);
 
   const sunGlowColor = new THREE.Color(planet.outfitColor).lerp(new THREE.Color(0xffffff), 0.45);
   const sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({ color: sunGlowColor, transparent: true, opacity: 0.85, fog: false }));
   sunSprite.scale.set(90, 90, 1);
   sunSprite.position.set(300, 260, -400);
-  scene.add(sunSprite);
+  skyGroup.add(sunSprite);
   const moonSprite = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xdcdefc, transparent: true, opacity: 0.5, fog: false }));
   moonSprite.scale.set(38, 38, 1);
   moonSprite.position.set(-380, 300, 250);
-  scene.add(moonSprite);
+  skyGroup.add(moonSprite);
 
   // other worlds in this system, visible hanging in the sky - real shaded spheres (not flat
   // sprites) borrowing colors from other planets' data, so the sky hints that a whole system
@@ -344,7 +348,7 @@ function buildPlanetScene(planetId) {
       new THREE.MeshStandardMaterial({ color: srcPlanet.ground, roughness: 0.85, emissive: srcPlanet.ground, emissiveIntensity: 0.15, fog: false })
     );
     skyPlanet.position.set(Math.cos(theta) * Math.sin(phi) * r, Math.cos(phi) * r * 0.5 + 150, Math.sin(theta) * Math.sin(phi) * r);
-    scene.add(skyPlanet);
+    skyGroup.add(skyPlanet);
   }
 
   // ---- ambient weather, themed per planet (falling snow/ash/dust, rising bubbles/spores...) ----
@@ -1442,7 +1446,7 @@ function buildPlanetScene(planetId) {
 
   return {
     scene, groundHeightFn,
-    planet, ambient,
+    planet, ambient, skyGroup,
     spawnPoint: { x: 0, z: 6 },
     beacon, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
     caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
