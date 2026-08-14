@@ -50,7 +50,9 @@ class SpaceFlight {
 
     // destination planet visual
     const planetData = PLANETS[destPlanetId];
-    this.travelGoal = opts.travelGoal || 620;
+    // trips between planets are meant to feel like a real journey now that you can go
+    // anywhere anytime - forwardSpeed is a constant 20/sec, so this default is a ~2 minute trip
+    this.travelGoal = opts.travelGoal || 2400;
     const pMesh = new THREE.Mesh(new THREE.SphereGeometry(60, 24, 20), new THREE.MeshStandardMaterial({ color: planetData.ground, roughness: 0.9 }));
     pMesh.position.set(0, 0, -this.travelGoal - 40);
     this.scene.add(pMesh);

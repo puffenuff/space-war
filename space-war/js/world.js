@@ -1,4 +1,9 @@
 
+// caves (mineshaft + interior + secret vault boss) are switched off for now - the whole
+// building code path still exists in buildPlanetScene, just gated behind this flag, so it's
+// a one-line flip to bring back later rather than a real deletion
+const CAVES_ENABLED = false;
+
 // per-theme ambient weather look: falling snow/ash/dust on most worlds, rising bubbles/spores
 // on the reef and toxic worlds for variety. Keyed by planet.theme, one entry per planet.
 const WEATHER_BY_THEME = {
@@ -24,6 +29,32 @@ function seededRand(seed) {
     s = (s * 9301 + 49297) % 233280;
     return s / 233280;
   };
+}
+
+// ---- Terraform Station: NOT part of the deterministic per-planet generation above - the
+// player has to build one (via the Craft menu) wherever they're standing, so this is a
+// standalone factory game.js calls at build time and again to restore it on revisits ----
+function buildTerraformStationMesh(x, y, z) {
+  const station = new THREE.Group();
+  const stationBaseMat = new THREE.MeshStandardMaterial({ color: 0x2a3348, metalness: 0.6, roughness: 0.35 });
+  const stationBase = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.05, 1.2, 10), stationBaseMat);
+  stationBase.position.y = 0.6;
+  stationBase.castShadow = true;
+  station.add(stationBase);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, 0.12), new THREE.MeshStandardMaterial({ color: 0x1a2030, metalness: 0.4, roughness: 0.4 }));
+  panel.position.set(0, 1.35, 0.55);
+  panel.rotation.x = -0.35;
+  station.add(panel);
+  const meterColors = [0x6fd7ff, 0xff8a3d, 0xb7a0ff]; // oxygen, heat, pressure
+  const meterLights = meterColors.map((c, i) => {
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.7 }));
+    light.position.set(-0.32 + i * 0.32, 1.9, 0.4);
+    station.add(light);
+    return light;
+  });
+  station.position.set(x, y, z);
+  station.userData = { type: 'terraformStation', meterLights };
+  return station;
 }
 
 function buildTerrain(planet, heightFn) {
@@ -596,18 +627,62 @@ function buildPlanetScene(planetId) {
     }
   }
 
-  // ---- return beacon near spawn ----
+  // ---- broken escape pod near spawn: this is "home" on each planet now that there's no
+  // separate base hub - purely a landing/spawn landmark, no interaction needed. Kept the
+  // variable name `beacon` since it's still the same role (the spawn marker), just re-themed.
   const beacon = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 3, 8), new THREE.MeshStandardMaterial({ color: 0x99a3b0, metalness: 0.6, roughness: 0.3 }));
-  pole.position.y = 1.5;
-  const beaconLight = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 10), new THREE.MeshStandardMaterial({ color: 0x4ad2ff, emissive: 0x2aa9e0, emissiveIntensity: 0.8 }));
-  beaconLight.position.y = 3.1;
-  beacon.add(pole, beaconLight);
+  const podHullMat = new THREE.MeshStandardMaterial({ color: 0xc7cdd6, metalness: 0.6, roughness: 0.4 });
+  const podDarkMat = new THREE.MeshStandardMaterial({ color: 0x3a3f48, metalness: 0.5, roughness: 0.5 });
+  const podHull = new THREE.Mesh(new THREE.SphereGeometry(1.6, 12, 10), podHullMat);
+  podHull.scale.set(1, 0.85, 1.1);
+  podHull.rotation.z = 0.3;
+  podHull.position.y = 1.1;
+  podHull.castShadow = true;
+  beacon.add(podHull);
+  const hatch = new THREE.Mesh(new THREE.CircleGeometry(0.7, 10, 0, Math.PI * 1.3), podDarkMat);
+  hatch.position.set(0.9, 1.2, 0.6);
+  hatch.rotation.y = 0.6;
+  beacon.add(hatch);
+  const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 2.2, 6), podDarkMat);
+  strut.position.set(-1.1, 0.6, -0.3);
+  strut.rotation.z = 0.5;
+  beacon.add(strut);
+  // a small still-lit status light on the hull - the only sign the pod still has power/oxygen
+  const beaconLight = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0x6fffea, emissive: 0x2aa9a0, emissiveIntensity: 0.8 }));
+  beaconLight.position.set(0, 1.9, 0.7);
+  beacon.add(beaconLight);
   beacon.position.set(0, groundHeightFn(0, 12), 12);
-  beacon.userData = { type: 'returnBeacon', label: 'Return to Base' };
+  beacon.userData = { type: 'pod' };
   scene.add(beacon);
 
-  // ---- scrap + coin pickups ----
+  // ---- terraform desk: a salvaged table + monitor next to the pod. Always present, but the
+  // computer on it only does anything once the player builds one (via the Craft menu or by
+  // interacting here) - see handleTerraformDeskTap/openTerraformStation in game.js ----
+  const terraformDesk = new THREE.Group();
+  const deskMat = new THREE.MeshStandardMaterial({ color: 0x4a4640, metalness: 0.4, roughness: 0.6 });
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 0.8), deskMat);
+  deskTop.position.y = 0.9;
+  deskTop.castShadow = true;
+  terraformDesk.add(deskTop);
+  const deskLegGeo = new THREE.BoxGeometry(0.1, 0.9, 0.1);
+  [[-0.55, -0.3], [0.55, -0.3], [-0.55, 0.3], [0.55, 0.3]].forEach(([dx, dz]) => {
+    const leg = new THREE.Mesh(deskLegGeo, deskMat);
+    leg.position.set(dx, 0.45, dz);
+    terraformDesk.add(leg);
+  });
+  const monitorMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, metalness: 0.4, roughness: 0.4 });
+  const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.08), monitorMat);
+  monitor.position.set(0, 1.28, -0.15);
+  terraformDesk.add(monitor);
+  const monitorScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.38), new THREE.MeshStandardMaterial({ color: 0x0a2a3a, emissive: 0x2aa9a0, emissiveIntensity: 0.5, side: THREE.DoubleSide }));
+  monitorScreen.position.set(0, 1.28, -0.1);
+  terraformDesk.add(monitorScreen);
+  terraformDesk.position.set(2.4, groundHeightFn(2.4, 11), 10.6);
+  terraformDesk.rotation.y = -0.5;
+  terraformDesk.userData = { type: 'terraformDesk' };
+  scene.add(terraformDesk);
+
+  // ---- salvage caches (small coin-value pickups) + coin pickups ----
   const scrapPickups = [];
   const scrapGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
   const scrapMat = new THREE.MeshStandardMaterial({ color: 0x8899a5, metalness: 0.7, roughness: 0.4 });
@@ -620,7 +695,7 @@ function buildPlanetScene(planetId) {
     const m = new THREE.Mesh(scrapGeo, scrapMat);
     m.position.set(x, groundHeightFn(x, z) + 0.3, z);
     m.castShadow = true;
-    m.userData = { type: 'scrap', collected: false, spin: rand() * 10 };
+    m.userData = { type: 'cache', collected: false, spin: rand() * 10 };
     scene.add(m);
     scrapPickups.push(m);
   }
@@ -766,32 +841,43 @@ function buildPlanetScene(planetId) {
     scene.add(wreck);
   }
 
-  // ---- material chests: raw resources scattered across the surface, more (and worth more)
-  // tucked in the "special area" cave below - each one holds a single named material out of
-  // the 17 in MATERIALS (data.js), picked with rarity weighting so rare finds glow brighter
-  // and feel worth detouring for. The crate itself stays a neutral color; the crystal cluster
-  // on top is what's colored/glowing, so the material is readable from a distance.
-  const oreChestGeo = new THREE.BoxGeometry(1.0, 0.75, 0.8);
-  const crateMat = new THREE.MeshStandardMaterial({ color: 0x4a4640, metalness: 0.4, roughness: 0.6 });
+  // ---- material deposits: raw resources embedded right in the ground, scattered across the
+  // surface (more, and worth more, tucked in the "special area" cave below) - each one holds
+  // a single named material out of the 17 in MATERIALS (data.js), picked with rarity weighting
+  // so rare finds glow brighter and feel worth detouring for. It's a knuckle of rock sunk into
+  // the terrain (not a floating chest) with the material's own crystal poking out of it, so
+  // mining it reads as breaking a vein out of the ground rather than looting a container.
+  const rockChunkGeo = new THREE.DodecahedronGeometry(0.4, 0);
+  const rockDepositMat = new THREE.MeshStandardMaterial({ color: 0x5a5650, metalness: 0.3, roughness: 0.85 });
   const materialShardGeo = new THREE.ConeGeometry(0.16, 0.5, 5);
   function buildMaterialChest(x, y, z, ry, rand) {
     const matDef = pickMaterial(rand);
     const glowStrength = matDef.rarity === 'rare' ? 0.75 : matDef.rarity === 'uncommon' ? 0.5 : 0.28;
-    const chest = new THREE.Mesh(oreChestGeo, crateMat);
-    chest.position.set(x, y, z);
-    chest.rotation.y = ry;
-    chest.castShadow = true;
+    const deposit = new THREE.Group();
+    deposit.position.set(x, y, z);
+    deposit.rotation.y = ry;
+    // 2-3 jagged rock chunks, partly sunk into the ground, clustered off-center so it reads
+    // as an outcrop rather than a neat pile
+    const chunkCount = 2 + Math.floor(rand() * 2);
+    for (let c = 0; c < chunkCount; c++) {
+      const chunk = new THREE.Mesh(rockChunkGeo, rockDepositMat);
+      chunk.position.set((rand() - 0.5) * 0.6, -0.15 + rand() * 0.1, (rand() - 0.5) * 0.5);
+      chunk.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+      chunk.scale.set(0.7 + rand() * 0.6, 0.5 + rand() * 0.4, 0.7 + rand() * 0.6);
+      chunk.castShadow = true;
+      deposit.add(chunk);
+    }
     const crystalMat = new THREE.MeshStandardMaterial({ color: matDef.color, emissive: matDef.color, emissiveIntensity: glowStrength, metalness: 0.3, roughness: 0.25 });
     crystalMat.userData.baseGlow = glowStrength;
     for (let c = 0; c < 3; c++) {
       const shard = new THREE.Mesh(materialShardGeo, crystalMat);
-      shard.position.set((rand() - 0.5) * 0.5, 0.55 + rand() * 0.15, (rand() - 0.5) * 0.4);
-      shard.rotation.set((rand() - 0.5) * 0.5, rand() * Math.PI, (rand() - 0.5) * 0.5);
+      shard.position.set((rand() - 0.5) * 0.5, 0.1 + rand() * 0.2, (rand() - 0.5) * 0.4);
+      shard.rotation.set((rand() - 0.5) * 1.0, rand() * Math.PI, (rand() - 0.5) * 1.0);
       shard.scale.setScalar(0.7 + rand() * 0.6);
-      chest.add(shard);
+      deposit.add(shard);
     }
-    chest.userData = { type: 'oreChest', collected: false, material: matDef.key, crystalMat, amount: 4 + Math.floor(rand() * 4) };
-    return chest;
+    deposit.userData = { type: 'oreChest', collected: false, material: matDef.key, crystalMat, amount: 4 + Math.floor(rand() * 4) };
+    return deposit;
   }
   const oreChests = [];
   const oreChestCount = 10;
@@ -806,681 +892,691 @@ function buildPlanetScene(planetId) {
     oreChests.push(chest);
   }
 
-  // ---- permanent mineshaft entrance, bored into the hillside found above (walk in/out any time) ----
-  const mineEntrance = new THREE.Group();
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
-  // steered toward neutral grey stone instead of planet.ground2 - the terrain shader also
-  // shades high/steep ground toward ground2, so using that color made the whole mountain
-  // camouflage into the hillside it's sitting on
-  const mountainColor = new THREE.Color(planet.ground2).lerp(new THREE.Color(0x4a4a4a), 0.6);
-  const mountainMat = new THREE.MeshStandardMaterial({ color: mountainColor, roughness: 0.9 });
+  // caves are switched off for now (see CAVES_ENABLED) - the building code below is kept
+  // intact, just not invoked, so it's easy to turn back on later. These are pre-declared so
+  // the rest of the function (interactable list, tick()) can safely reference them either way.
+  let mineEntrance = null, caveGroup = null, caveOrigin = null, chest = null, chest2 = null,
+    outfit = null, caveExit = null, exitLight = null, waterMat = null, splashMat = null,
+    poolMat = null, secretRoom = null;
+  let caveTreasures = [], caveScrapPickups = [], caveCoinPickups = [], caveOreChests = [],
+    caveEnemySpawns = [], godRays = [], dustMotes = [];
+  if (CAVES_ENABLED) {
+    // ---- permanent mineshaft entrance, bored into the hillside found above (walk in/out any time) ----
+    mineEntrance = new THREE.Group();
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+    // steered toward neutral grey stone instead of planet.ground2 - the terrain shader also
+    // shades high/steep ground toward ground2, so using that color made the whole mountain
+    // camouflage into the hillside it's sitting on
+    const mountainColor = new THREE.Color(planet.ground2).lerp(new THREE.Color(0x4a4a4a), 0.6);
+    const mountainMat = new THREE.MeshStandardMaterial({ color: mountainColor, roughness: 0.9 });
 
-  // one big, tall mountain peak (not scattered boulders) that the shaft is bored into.
-  // each cone's footprint (center z + radius) is kept behind the doorway's opening (z ~0.7)
-  // so the rock mass reads as "behind/around" the entrance instead of bulging out over it
-  const mountainRand = seededRand(planetId * 613 + 29);
-  const peak = new THREE.Mesh(new THREE.ConeGeometry(17, 50, 9), mountainMat);
-  peak.position.set(1, 24, -18);
-  peak.rotation.y = mountainRand() * Math.PI;
-  peak.castShadow = true; peak.receiveShadow = true;
-  mineEntrance.add(peak);
-  // smaller shoulder peaks so it reads as a mountain, not one perfect cone
-  [[-9, 15, -10, 9, 30], [8, 12, -8, 7, 24], [-2, 9, -7, 6, 20]].forEach(([px, py, pz, r, h]) => {
-    const shoulder = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), mountainMat);
-    shoulder.position.set(px, py, pz);
-    shoulder.rotation.y = mountainRand() * Math.PI;
-    shoulder.castShadow = true; shoulder.receiveShadow = true;
-    mineEntrance.add(shoulder);
-  });
-  // boulders at the base where the mountain meets the ground - kept off to the sides,
-  // well clear of the doorway and its walkway, so the entrance never gets buried
-  const boulderGeo = new THREE.IcosahedronGeometry(1, 0);
-  for (let i = 0; i < 5; i++) {
-    const boulder = new THREE.Mesh(boulderGeo, mountainMat);
-    const s = 1.5 + mountainRand() * 2.5;
-    boulder.scale.set(s, s * (0.7 + mountainRand() * 0.5), s);
-    const side = i % 2 === 0 ? 1 : -1;
-    const bx = side * (2.6 + mountainRand() * 4.5);
-    const bz = -1 + mountainRand() * 3;
-    boulder.position.set(bx, s * 0.35, bz);
-    boulder.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
-    boulder.castShadow = true; boulder.receiveShadow = true;
-    mineEntrance.add(boulder);
-  }
-
-  // rock flanking the sides and top of the doorway, so the entrance reads as carved into
-  // solid stone up close (not just distant mountain peaks). Each piece's forward reach
-  // (center z + its own radius) is capped behind doorwaySafeFrontZ, so this can never
-  // grow forward and re-cover the opening the way the old boulders/peaks used to.
-  const doorwaySafeFrontZ = -0.3;
-  [-1, 1].forEach((side) => {
-    for (let j = 0; j < 3; j++) {
-      const flank = new THREE.Mesh(boulderGeo, mountainMat);
-      const s = 1.6 + mountainRand() * 1.3;
-      flank.scale.set(s, s * (0.9 + mountainRand() * 0.6), s);
-      const fx = side * (2.3 + j * 1.1 + mountainRand() * 0.5);
-      const fy = 0.4 + j * 1.5 + mountainRand() * 0.4;
-      const fz = doorwaySafeFrontZ - s - mountainRand() * 2.5;
-      flank.position.set(fx, fy, fz);
-      flank.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
-      flank.castShadow = true; flank.receiveShadow = true;
-      mineEntrance.add(flank);
+    // one big, tall mountain peak (not scattered boulders) that the shaft is bored into.
+    // each cone's footprint (center z + radius) is kept behind the doorway's opening (z ~0.7)
+    // so the rock mass reads as "behind/around" the entrance instead of bulging out over it
+    const mountainRand = seededRand(planetId * 613 + 29);
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(17, 50, 9), mountainMat);
+    peak.position.set(1, 24, -18);
+    peak.rotation.y = mountainRand() * Math.PI;
+    peak.castShadow = true; peak.receiveShadow = true;
+    mineEntrance.add(peak);
+    // smaller shoulder peaks so it reads as a mountain, not one perfect cone
+    [[-9, 15, -10, 9, 30], [8, 12, -8, 7, 24], [-2, 9, -7, 6, 20]].forEach(([px, py, pz, r, h]) => {
+      const shoulder = new THREE.Mesh(new THREE.ConeGeometry(r, h, 8), mountainMat);
+      shoulder.position.set(px, py, pz);
+      shoulder.rotation.y = mountainRand() * Math.PI;
+      shoulder.castShadow = true; shoulder.receiveShadow = true;
+      mineEntrance.add(shoulder);
+    });
+    // boulders at the base where the mountain meets the ground - kept off to the sides,
+    // well clear of the doorway and its walkway, so the entrance never gets buried
+    const boulderGeo = new THREE.IcosahedronGeometry(1, 0);
+    for (let i = 0; i < 5; i++) {
+      const boulder = new THREE.Mesh(boulderGeo, mountainMat);
+      const s = 1.5 + mountainRand() * 2.5;
+      boulder.scale.set(s, s * (0.7 + mountainRand() * 0.5), s);
+      const side = i % 2 === 0 ? 1 : -1;
+      const bx = side * (2.6 + mountainRand() * 4.5);
+      const bz = -1 + mountainRand() * 3;
+      boulder.position.set(bx, s * 0.35, bz);
+      boulder.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
+      boulder.castShadow = true; boulder.receiveShadow = true;
+      mineEntrance.add(boulder);
     }
-  });
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 3.6), mountainMat);
-  lintel.position.set(0, 4.4, -3);
-  lintel.rotation.set((mountainRand() - 0.5) * 0.12, (mountainRand() - 0.5) * 0.15, (mountainRand() - 0.5) * 0.08);
-  lintel.castShadow = true; lintel.receiveShadow = true;
-  mineEntrance.add(lintel);
 
-  // dark doorway recessed into the rock face, framed by timber
-  const doorway = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 3), new THREE.MeshStandardMaterial({ color: 0x120d08, roughness: 1 }));
-  doorway.position.set(0, 1.3, -0.8);
-  mineEntrance.add(doorway);
-  const postGeo = new THREE.CylinderGeometry(0.22, 0.26, 3.0, 8);
-  const postL = new THREE.Mesh(postGeo, woodMat); postL.position.set(-1.15, 1.5, 0.4);
-  const postR = new THREE.Mesh(postGeo, woodMat); postR.position.set(1.15, 1.5, 0.4);
-  mineEntrance.add(postL, postR);
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.35, 0.4), woodMat);
-  beam.position.set(0, 2.85, 0.4);
-  mineEntrance.add(beam);
-  // extra support planks visibly jutting out of the mountain face around the entrance
-  const plankGeo = new THREE.BoxGeometry(0.18, 0.18, 3.4);
-  [[-2.0, 2.2, -0.4, 0.35], [2.1, 1.7, -0.6, -0.25], [-1.6, 0.9, -0.8, 0.15], [1.8, 3.1, -0.5, -0.4]].forEach(([px, py, pz, rx]) => {
-    const plank = new THREE.Mesh(plankGeo, woodMat);
-    plank.position.set(px, py, pz);
-    plank.rotation.x = rx;
-    plank.rotation.y = (mountainRand() - 0.5) * 0.5;
-    mineEntrance.add(plank);
-  });
-  const railGeo = new THREE.BoxGeometry(0.1, 0.08, 3.2);
-  const railMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, metalness: 0.6, roughness: 0.5 });
-  const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.8);
-  const railR = new THREE.Mesh(railGeo, railMat); railR.position.set(0.5, 0.02, 1.8);
-  mineEntrance.add(railL, railR);
-  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
-  lantern.position.set(-1.15, 2.4, 0.4);
-  mineEntrance.add(lantern);
-
-  // tall glowing blue beacon beam so the mineshaft is spottable from across the map -
-  // fog disabled so it stays bright at distance instead of fading into the sky color
-  const shaftBeamMat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, fog: false });
-  const shaftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.6, 42, 8, 1, true), shaftBeamMat);
-  shaftBeam.position.set(0, 21.5, 0.4);
-  mineEntrance.add(shaftBeam);
-  const beaconGlow = new THREE.PointLight(0x7fe0ff, 1.2, 60);
-  beaconGlow.position.set(0, 12, 0.4);
-  mineEntrance.add(beaconGlow);
-
-  mineEntrance.position.set(mineX, mineY, mineZ);
-  mineEntrance.rotation.y = mineFacing;
-  mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mineX, mineY, mineZ), lantern, shaftBeam };
-  scene.add(mineEntrance);
-
-  // ---- cave interior (built far away, teleport target); size differs per planet ----
-  const caveRadius = planet.caveRadius || 75;
-  // ceiling kept much lower than radius would suggest - a tall ceiling sits outside light range and just reads as a flat black void
-  const caveHeight = Math.round(Math.min(40, Math.max(20, caveRadius * 0.13)));
-  const caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
-  const caveGroup = new THREE.Group();
-  caveGroup.position.copy(caveOrigin);
-  const caveRand = seededRand(planetId * 47 + 501);
-  // reserve a clear lane for the secret vault trail (built further below) so stalagmites,
-  // pillars, and crystal clusters never spawn on top of it and block the path
-  const secretTrailZoneStartZ = -caveRadius * 0.58;
-  const secretTrailZoneEndZ = -caveRadius * 0.99;
-  const secretTrailHalfWidth = 6;
-  function inSecretTrailZone(x, z) {
-    if (!planet.secretRoom) return false;
-    return z <= secretTrailZoneStartZ && z >= secretTrailZoneEndZ && Math.abs(x) < secretTrailHalfWidth;
-  }
-  // uneven rocky floor with subtle noise bumps and mineral color streaking
-  const floorGeo = new THREE.CircleGeometry(caveRadius, 48);
-  const floorPos = floorGeo.attributes.position;
-  const floorSeed = planetId * 233 + 41;
-  const floorColorA = new THREE.Color(planet.ground2).lerp(new THREE.Color(0xffffff), 0.15);
-  const floorColorB = new THREE.Color(planet.ground2).multiplyScalar(0.85);
-  const floorColors = [];
-  for (let i = 0; i < floorPos.count; i++) {
-    const lx = floorPos.getX(i), ly = floorPos.getY(i);
-    const n = fbm(lx * 0.025, ly * 0.025, floorSeed, 3);
-    floorPos.setZ(i, (n - 0.5) * 0.5);
-    const c = floorColorA.clone().lerp(floorColorB, n);
-    floorColors.push(c.r, c.g, c.b);
-  }
-  floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(floorColors, 3));
-  floorGeo.computeVertexNormals();
-  const caveFloor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
-  caveFloor.rotation.x = -Math.PI / 2;
-  caveFloor.position.y = -0.5;
-  caveGroup.add(caveFloor);
-
-  // organic, uneven cave wall - bulges and alcoves instead of a perfect cylinder
-  const wallGeo = new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 28, 10, true);
-  const wallPosAttr = wallGeo.attributes.position;
-  const wallSeed = planetId * 191 + 71;
-  const wallColorA = new THREE.Color(0x2a2018);
-  const wallColorB = new THREE.Color(0x1c150f);
-  const wallColors = [];
-  for (let i = 0; i < wallPosAttr.count; i++) {
-    const wx = wallPosAttr.getX(i), wy = wallPosAttr.getY(i), wz = wallPosAttr.getZ(i);
-    const theta = Math.atan2(wz, wx);
-    const n = fbm(Math.cos(theta) * 2.4, Math.sin(theta) * 2.4 + wy * 0.06, wallSeed, 3);
-    const bump = (n - 0.5) * Math.min(9, caveRadius * 0.035);
-    const r = Math.hypot(wx, wz);
-    const newR = r + bump;
-    wallPosAttr.setX(i, Math.cos(theta) * newR);
-    wallPosAttr.setZ(i, Math.sin(theta) * newR);
-    const c = wallColorA.clone().lerp(wallColorB, n);
-    wallColors.push(c.r, c.g, c.b);
-  }
-  wallGeo.setAttribute('color', new THREE.Float32BufferAttribute(wallColors, 3));
-  wallGeo.computeVertexNormals();
-  const caveWall = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.BackSide }));
-  caveWall.position.y = caveHeight / 2 - 0.5;
-  caveGroup.add(caveWall);
-  // uneven ceiling: some spots hang lower, some rise higher, but it always stays flush with the wall rim
-  const ceilGeo = new THREE.CircleGeometry(caveRadius, 28);
-  const ceilPos = ceilGeo.attributes.position;
-  const ceilSeed = planetId * 311 + 17;
-  for (let i = 0; i < ceilPos.count; i++) {
-    const lx = ceilPos.getX(i), ly = ceilPos.getY(i);
-    const distFrac = Math.min(1, Math.hypot(lx, ly) / caveRadius);
-    const edgeFalloff = Math.max(0, 1 - distFrac);
-    const n = fbm(lx * 0.012, ly * 0.012, ceilSeed, 3);
-    ceilPos.setZ(i, (n - 0.5) * caveHeight * 0.55 * edgeFalloff);
-  }
-  ceilGeo.computeVertexNormals();
-  const caveCeil = new THREE.Mesh(ceilGeo, new THREE.MeshStandardMaterial({ color: 0x1a140f, roughness: 1, side: THREE.DoubleSide }));
-  caveCeil.rotation.x = -Math.PI / 2;
-  caveCeil.position.y = caveHeight - 0.5;
-  caveGroup.add(caveCeil);
-
-  // warm amber "dripstone cave" lighting, with one cool light for contrast (like the reference photo)
-  const caveLightA = new THREE.PointLight(0xffaa55, 1.3, caveRadius * 1.3);
-  caveLightA.position.set(0, caveHeight * 0.55, 0);
-  caveGroup.add(caveLightA);
-  const caveLightB = new THREE.PointLight(0xff8844, 0.85, caveRadius * 1.1);
-  caveLightB.position.set(caveRadius * 0.45, caveHeight * 0.4, -caveRadius * 0.45);
-  caveGroup.add(caveLightB);
-  const caveLightC = new THREE.PointLight(0x6fd7ff, 0.6, caveRadius * 1.1);
-  caveLightC.position.set(-caveRadius * 0.5, caveHeight * 0.4, caveRadius * 0.45);
-  caveGroup.add(caveLightC);
-  const caveLightD = new THREE.PointLight(0xffaa55, 0.7, caveRadius * 1.0);
-  caveLightD.position.set(caveRadius * 0.5, caveHeight * 0.35, caveRadius * 0.5);
-  caveGroup.add(caveLightD);
-
-  // dramatic god-ray light shafts from gaps in the ceiling
-  const rayCount = 3;
-  const godRays = [];
-  for (let i = 0; i < rayCount; i++) {
-    const ra = caveRand() * Math.PI * 2;
-    const rr = caveRadius * (0.15 + caveRand() * 0.4);
-    const rayMat = new THREE.MeshBasicMaterial({ color: 0xffcf8a, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
-    const ray = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 4.5, caveHeight * 1.05, 10, 1, true), rayMat);
-    ray.position.set(Math.cos(ra) * rr, caveHeight * 0.48, Math.sin(ra) * rr);
-    ray.rotation.z = (caveRand() - 0.5) * 0.25;
-    ray.rotation.x = (caveRand() - 0.5) * 0.25;
-    caveGroup.add(ray);
-    godRays.push(ray);
-    const rayLight = new THREE.PointLight(0xffcf8a, 0.5, caveRadius * 0.5);
-    rayLight.position.set(ray.position.x, 1.5, ray.position.z);
-    caveGroup.add(rayLight);
-  }
-
-  const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
-  const glowOrbCount = Math.min(95, Math.round(caveRadius * 0.42));
-  for (let i = 0; i < glowOrbCount; i++) {
-    const a = (i / glowOrbCount) * Math.PI * 2;
-    const rr = caveRadius * (0.35 + (i % 3) * 0.2);
-    const ox = Math.cos(a) * rr, oz = Math.sin(a) * rr;
-    if (inSecretTrailZone(ox, oz)) continue;
-    const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0x6fd7ff : 0xffaa55 }));
-    o.position.set(ox, 0.5, oz);
-    caveGroup.add(o);
-  }
-
-  // slow-drifting glowing dust motes for atmosphere
-  const moteGeo = new THREE.SphereGeometry(0.09, 6, 6);
-  const moteCount = Math.min(26, Math.round(caveRadius * 0.12));
-  const dustMotes = [];
-  for (let i = 0; i < moteCount; i++) {
-    const mote = new THREE.Mesh(moteGeo, new THREE.MeshBasicMaterial({ color: caveRand() > 0.5 ? 0xffcf8a : 0x9fe0ff, transparent: true, opacity: 0.7 }));
-    const a = caveRand() * Math.PI * 2;
-    const r = caveRand() * caveRadius * 0.75;
-    mote.position.set(Math.cos(a) * r, 1 + caveRand() * (caveHeight * 0.6), Math.sin(a) * r);
-    mote.userData = { baseY: mote.position.y, baseR: r, angle: a, speed: 0.05 + caveRand() * 0.1, bobPhase: caveRand() * Math.PI * 2 };
-    caveGroup.add(mote);
-    dustMotes.push(mote);
-  }
-
-  // scattered stalagmite formations rising from the floor (warm limestone tone)
-  const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
-  const stalagMat = new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 1 });
-  const stalagCount = Math.min(130, Math.round(caveRadius * 0.6));
-  for (let i = 0; i < stalagCount; i++) {
-    let sx, sz, tries = 0;
-    do {
-      const a = caveRand() * Math.PI * 2;
-      const r = 6 + caveRand() * (caveRadius - 10);
-      sx = Math.cos(a) * r; sz = Math.sin(a) * r;
-      tries++;
-    } while (inSecretTrailZone(sx, sz) && tries < 6);
-    if (inSecretTrailZone(sx, sz)) continue;
-    const s = new THREE.Mesh(stalagGeo, stalagMat);
-    const h = 1.5 + caveRand() * 3.5;
-    s.scale.set(0.8 + caveRand() * 1.2, h, 0.8 + caveRand() * 1.2);
-    s.position.set(sx, -0.5 + h / 2, sz);
-    s.rotation.y = caveRand() * Math.PI;
-    caveGroup.add(s);
-  }
-
-  // dense hanging stalactites from the ceiling - the dominant feature of the reference cave
-  const stalactiteMat = new THREE.MeshStandardMaterial({ color: 0x5a4834, roughness: 1 });
-  const stalactiteCount = Math.min(160, Math.round(caveRadius * 0.75));
-  for (let i = 0; i < stalactiteCount; i++) {
-    let tx, tz, tries = 0;
-    do {
-      const a = caveRand() * Math.PI * 2;
-      const r = caveRand() * (caveRadius - 4);
-      tx = Math.cos(a) * r; tz = Math.sin(a) * r;
-      tries++;
-    } while (inSecretTrailZone(tx, tz) && tries < 6);
-    if (inSecretTrailZone(tx, tz)) continue;
-    const t = new THREE.Mesh(stalagGeo, stalactiteMat);
-    const h = 1.2 + caveRand() * 4.5;
-    t.scale.set(0.6 + caveRand() * 0.9, h, 0.6 + caveRand() * 0.9);
-    t.rotation.x = Math.PI;
-    t.position.set(tx, caveHeight - 0.5 - h / 2, tz);
-    t.rotation.y = caveRand() * Math.PI;
-    caveGroup.add(t);
-  }
-
-  // still reflective water pool on the cave floor
-  const poolRadius = caveRadius * (0.28 + caveRand() * 0.1);
-  // no scene envMap exists, so a near-black high-metalness material has nothing to
-  // reflect and renders as a flat black disc - use a lit, low-metalness "dark water"
-  // look instead so point lights actually show up on the surface
-  const poolMat = new THREE.MeshStandardMaterial({ color: 0x123a4a, emissive: 0x0a1f28, emissiveIntensity: 0.3, metalness: 0.2, roughness: 0.1 });
-  const pool = new THREE.Mesh(new THREE.CircleGeometry(poolRadius, 28), poolMat);
-  pool.rotation.x = -Math.PI / 2;
-  pool.position.set(caveRadius * 0.12, 0.01, -caveRadius * 0.12);
-  caveGroup.add(pool);
-
-  // a small waterfall trickling down the wall into the pool
-  const fallHeight = caveHeight * 0.55;
-  const fallX = pool.position.x + poolRadius * 0.7;
-  const fallZ = pool.position.z + poolRadius * 0.5;
-  const waterMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
-  const waterfall = new THREE.Mesh(new THREE.PlaneGeometry(1.4, fallHeight), waterMat);
-  waterfall.position.set(fallX, fallHeight / 2, fallZ);
-  waterfall.rotation.y = Math.atan2(fallX - pool.position.x, fallZ - pool.position.z) + Math.PI;
-  caveGroup.add(waterfall);
-  const splashMat = new THREE.MeshBasicMaterial({ color: 0xdfF4ff, transparent: true, opacity: 0.5 });
-  const splash = new THREE.Mesh(new THREE.CircleGeometry(1.6, 12), splashMat);
-  splash.rotation.x = -Math.PI / 2;
-  splash.position.set(fallX, 0.03, fallZ);
-  caveGroup.add(splash);
-
-  // glowing mineral crystal clusters, color-matched to this planet's outfit accent
-  const crystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.3 });
-  const crystalGeo = new THREE.ConeGeometry(0.4, 1, 5);
-  const crystalClusterCount = Math.min(32, Math.round(caveRadius / 10));
-  for (let i = 0; i < crystalClusterCount; i++) {
-    let cx, cz, tries = 0;
-    do {
-      const a = caveRand() * Math.PI * 2;
-      const r = 8 + caveRand() * (caveRadius - 14);
-      cx = Math.cos(a) * r; cz = Math.sin(a) * r;
-      tries++;
-    } while (inSecretTrailZone(cx, cz) && tries < 6);
-    if (inSecretTrailZone(cx, cz)) continue;
-    const cluster = new THREE.Group();
-    const shardCount = 3 + Math.floor(caveRand() * 3);
-    for (let j = 0; j < shardCount; j++) {
-      const shard = new THREE.Mesh(crystalGeo, crystalMat);
-      const h = 0.6 + caveRand() * 1.4;
-      shard.scale.set(0.6 + caveRand() * 0.6, h, 0.6 + caveRand() * 0.6);
-      shard.position.set((caveRand() - 0.5) * 1.2, -0.5 + h / 2, (caveRand() - 0.5) * 1.2);
-      shard.rotation.z = (caveRand() - 0.5) * 0.3;
-      cluster.add(shard);
-    }
-    cluster.position.set(cx, 0, cz);
-    caveGroup.add(cluster);
-  }
-
-  // scrap and coin pickups underground too, so exploring is worth it
-  const caveScrapPickups = [];
-  const caveScrapCount = Math.min(20, Math.round(caveRadius / 12));
-  for (let i = 0; i < caveScrapCount; i++) {
-    const a = caveRand() * Math.PI * 2;
-    const r = 5 + caveRand() * (caveRadius - 10);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), new THREE.MeshStandardMaterial({ color: 0x8899a5, metalness: 0.7, roughness: 0.4 }));
-    const localPos = new THREE.Vector3(Math.cos(a) * r, 0.3, Math.sin(a) * r);
-    m.position.copy(localPos);
-    m.userData = { type: 'scrap', collected: false, spin: caveRand() * 10, worldPos: caveOrigin.clone().add(localPos) };
-    caveGroup.add(m);
-    caveScrapPickups.push(m);
-  }
-  const caveCoinPickups = [];
-  const caveCoinCount = Math.min(18, Math.round(caveRadius / 15));
-  for (let i = 0; i < caveCoinCount; i++) {
-    const a = caveRand() * Math.PI * 2;
-    const r = 5 + caveRand() * (caveRadius - 10);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14), new THREE.MeshStandardMaterial({ color: 0xffd35e, metalness: 0.8, roughness: 0.25, emissive: 0x553d00, emissiveIntensity: 0.3 }));
-    m.rotation.x = Math.PI / 2;
-    const localPos = new THREE.Vector3(Math.cos(a) * r, 0.35, Math.sin(a) * r);
-    m.position.copy(localPos);
-    m.userData = { type: 'coin', collected: false, value: 5 + Math.floor(caveRand() * 10), worldPos: caveOrigin.clone().add(localPos) };
-    caveGroup.add(m);
-    caveCoinPickups.push(m);
-  }
-
-  // rock columns that span floor to ceiling - bumpy, noise-displaced surface instead of a smooth cylinder
-  const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e1e26, roughness: 1 });
-  const pillarRand = seededRand(planetId * 71 + 909);
-  const pillarCount = Math.min(34, Math.max(4, Math.round(caveRadius / 12)));
-  for (let i = 0; i < pillarCount; i++) {
-    let px0, pz0, tries = 0;
-    do {
-      const a = pillarRand() * Math.PI * 2;
-      const r = 12 + pillarRand() * (caveRadius - 20);
-      px0 = Math.cos(a) * r; pz0 = Math.sin(a) * r;
-      tries++;
-    } while (inSecretTrailZone(px0, pz0) && tries < 6);
-    if (inSecretTrailZone(px0, pz0)) continue;
-    const radiusTop = 0.6 + pillarRand() * 0.8;
-    const radiusBottom = 0.9 + pillarRand() * 1.1;
-    const pillarGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, caveHeight, 8, 6);
-    const pillarPos = pillarGeo.attributes.position;
-    const pillarSeed = planetId * 613 + i * 37 + 5;
-    for (let v = 0; v < pillarPos.count; v++) {
-      const px = pillarPos.getX(v), py = pillarPos.getY(v), pz = pillarPos.getZ(v);
-      const theta = Math.atan2(pz, px);
-      const n = fbm(Math.cos(theta) * 2 + i, Math.sin(theta) * 2 + py * 0.15, pillarSeed, 2);
-      const bump = 1 + (n - 0.5) * 0.34;
-      pillarPos.setX(v, px * bump);
-      pillarPos.setZ(v, pz * bump);
-    }
-    pillarGeo.computeVertexNormals();
-    const pillar = new THREE.Mesh(pillarGeo, pillarMat);
-    pillar.position.set(px0, caveHeight / 2 - 0.5, pz0);
-    pillar.rotation.y = pillarRand() * Math.PI;
-    caveGroup.add(pillar);
-  }
-
-  // cave loot chests (two, spread across the bigger room)
-  const chestMat = new THREE.MeshStandardMaterial({ color: 0xd4a531, metalness: 0.5, roughness: 0.4 });
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.9), chestMat);
-  chest.position.set(0, -0.05, -caveRadius * 0.55);
-  chest.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest.position) };
-  caveGroup.add(chest);
-
-  const chest2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 0.8), chestMat.clone());
-  chest2.position.set(caveRadius * 0.5, -0.12, caveRadius * 0.4);
-  chest2.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest2.position) };
-  caveGroup.add(chest2);
-  const caveTreasures = [chest, chest2];
-
-  // material chests tucked in the cave - the "special area" materials, worth more per chest
-  // than the ones scattered on the surface since they take real effort (a whole cave) to reach
-  const caveOreChests = [];
-  const caveOreChestCount = 5;
-  for (let i = 0; i < caveOreChestCount; i++) {
-    let cox, coz, tries = 0;
-    do {
-      const a = caveRand() * Math.PI * 2;
-      const r = 10 + caveRand() * (caveRadius - 18);
-      cox = Math.cos(a) * r; coz = Math.sin(a) * r;
-      tries++;
-    } while (inSecretTrailZone(cox, coz) && tries < 6);
-    if (inSecretTrailZone(cox, coz)) continue;
-    const oreChest = buildMaterialChest(cox, -0.1, coz, caveRand() * Math.PI, caveRand);
-    oreChest.userData.amount = 8 + Math.floor(caveRand() * 5);
-    oreChest.userData.worldPos = caveOrigin.clone().add(oreChest.position);
-    caveGroup.add(oreChest);
-    caveOreChests.push(oreChest);
-  }
-
-  // special suit pickup, unique per planet, permanently reskins the astronaut
-  const outfitColor = planet.outfitColor || 0xffffff;
-  const outfit = new THREE.Group();
-  const outfitMat = new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.55, metalness: 0.45, roughness: 0.3 });
-  const outfitTrimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: outfitColor, emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.2 });
-
-  const outfitTorso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.35), outfitMat);
-  outfitTorso.position.y = 0.55;
-  outfit.add(outfitTorso);
-  const outfitChestLight = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.05), outfitTrimMat);
-  outfitChestLight.position.set(0, 0.62, 0.19);
-  outfit.add(outfitChestLight);
-
-  // shoulder pauldrons
-  const padGeo = new THREE.BoxGeometry(0.24, 0.16, 0.3);
-  const padL = new THREE.Mesh(padGeo, outfitTrimMat); padL.position.set(-0.32, 0.86, 0);
-  const padR = new THREE.Mesh(padGeo, outfitTrimMat); padR.position.set(0.32, 0.86, 0);
-  outfit.add(padL, padR);
-
-  // small arms
-  const outfitArmGeo = new THREE.BoxGeometry(0.15, 0.42, 0.17);
-  const outfitArmL = new THREE.Mesh(outfitArmGeo, outfitMat); outfitArmL.position.set(-0.34, 0.55, 0); outfitArmL.rotation.z = 0.18;
-  const outfitArmR = new THREE.Mesh(outfitArmGeo, outfitMat); outfitArmR.position.set(0.34, 0.55, 0); outfitArmR.rotation.z = -0.18;
-  outfit.add(outfitArmL, outfitArmR);
-
-  // helmet with glowing visor
-  const outfitHead = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 }));
-  outfitHead.position.y = 1.05;
-  outfit.add(outfitHead);
-  const outfitVisor = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.9, metalness: 0.6, roughness: 0.15 }));
-  outfitVisor.position.set(0, 1.05, 0.12);
-  outfitVisor.rotation.x = -0.15;
-  outfit.add(outfitVisor);
-  const outfitAntenna = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.18, 5), outfitTrimMat);
-  outfitAntenna.position.set(0, 1.28, 0);
-  outfit.add(outfitAntenna);
-
-  // twin display rings, like a trophy pedestal
-  const outfitRing = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 8, 20), new THREE.MeshBasicMaterial({ color: outfitColor }));
-  outfitRing.rotation.x = Math.PI / 2;
-  outfitRing.position.y = 0.05;
-  outfit.add(outfitRing);
-  const outfitRing2 = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 20), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-  outfitRing2.rotation.x = Math.PI / 2;
-  outfitRing2.position.y = 1.4;
-  outfit.add(outfitRing2);
-
-  outfit.position.set(-caveRadius * 0.5, 0.1, caveRadius * 0.35);
-  outfit.userData = { type: 'caveOutfit', collected: false, suitColor: outfitColor, worldPos: caveOrigin.clone().add(outfit.position), ring2: outfitRing2 };
-  caveGroup.add(outfit);
-
-  // cave enemy spawn points (positions only; game.js instantiates the actual enemies)
-  const caveEnemySpawns = [];
-  const caveEnemyCount = Math.min(10, Math.max(3, Math.round(caveRadius / 15)));
-  for (let i = 0; i < caveEnemyCount; i++) {
-    const a = (i / caveEnemyCount) * Math.PI * 2 + 0.6;
-    const r = caveRadius * 0.5;
-    caveEnemySpawns.push({ x: caveOrigin.x + Math.cos(a) * r, y: caveOrigin.y, z: caveOrigin.z + Math.sin(a) * r });
-  }
-
-  // ---- secret ambush vault: hidden room reached via a marked trail, seals shut on entry ----
-  let secretRoom = null;
-  if (planet.secretRoom) {
-    const hasBoss = !!planet.secretRoomBoss;
-    const corridorWidth = 5;
-    const corridorHeight = 6.4;
-    const trailStartZ = -caveRadius * 0.62;
-    const corridorStartZ = -caveRadius * 0.95;
-    const corridorLength = 30;
-    const corridorEndZ = corridorStartZ - corridorLength;
-    const roomRadius = hasBoss ? 36 : 22; // extra-large room when a boss needs room to loom
-    const roomHeight = Math.min(caveHeight, 16);
-    const roomCenterZ = corridorEndZ - roomRadius - 4;
-    const doorZ = corridorEndZ;
-
-    // glowing trail markers leading from the main chamber to the vault entrance - lit by
-    // real point lights every couple of markers, since emissive material alone doesn't
-    // cast any light and the cave's ambient light is dimmed way down while inCave
-    const trailMat = new THREE.MeshStandardMaterial({ color: 0xffcf6a, emissive: 0xffaa33, emissiveIntensity: 0.9, roughness: 0.4 });
-    const trailCount = 11;
-    for (let i = 0; i < trailCount; i++) {
-      const tFrac = i / (trailCount - 1);
-      const tz = trailStartZ + (corridorStartZ - trailStartZ) * tFrac;
-      const tx = Math.sin(tFrac * Math.PI * 1.4) * 1.6;
-      const marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.32, 6), trailMat);
-      marker.position.set(tx, -0.32, tz);
-      caveGroup.add(marker);
-      if (i % 2 === 0) {
-        const trailLight = new THREE.PointLight(0xffaa33, 0.8, 16);
-        trailLight.position.set(tx, 1.6, tz);
-        caveGroup.add(trailLight);
+    // rock flanking the sides and top of the doorway, so the entrance reads as carved into
+    // solid stone up close (not just distant mountain peaks). Each piece's forward reach
+    // (center z + its own radius) is capped behind doorwaySafeFrontZ, so this can never
+    // grow forward and re-cover the opening the way the old boulders/peaks used to.
+    const doorwaySafeFrontZ = -0.3;
+    [-1, 1].forEach((side) => {
+      for (let j = 0; j < 3; j++) {
+        const flank = new THREE.Mesh(boulderGeo, mountainMat);
+        const s = 1.6 + mountainRand() * 1.3;
+        flank.scale.set(s, s * (0.9 + mountainRand() * 0.6), s);
+        const fx = side * (2.3 + j * 1.1 + mountainRand() * 0.5);
+        const fy = 0.4 + j * 1.5 + mountainRand() * 0.4;
+        const fz = doorwaySafeFrontZ - s - mountainRand() * 2.5;
+        flank.position.set(fx, fy, fz);
+        flank.rotation.set(mountainRand() * Math.PI, mountainRand() * Math.PI, mountainRand() * Math.PI);
+        flank.castShadow = true; flank.receiveShadow = true;
+        mineEntrance.add(flank);
       }
+    });
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 3.6), mountainMat);
+    lintel.position.set(0, 4.4, -3);
+    lintel.rotation.set((mountainRand() - 0.5) * 0.12, (mountainRand() - 0.5) * 0.15, (mountainRand() - 0.5) * 0.08);
+    lintel.castShadow = true; lintel.receiveShadow = true;
+    mineEntrance.add(lintel);
+
+    // dark doorway recessed into the rock face, framed by timber
+    const doorway = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.6, 3), new THREE.MeshStandardMaterial({ color: 0x120d08, roughness: 1 }));
+    doorway.position.set(0, 1.3, -0.8);
+    mineEntrance.add(doorway);
+    const postGeo = new THREE.CylinderGeometry(0.22, 0.26, 3.0, 8);
+    const postL = new THREE.Mesh(postGeo, woodMat); postL.position.set(-1.15, 1.5, 0.4);
+    const postR = new THREE.Mesh(postGeo, woodMat); postR.position.set(1.15, 1.5, 0.4);
+    mineEntrance.add(postL, postR);
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(2.7, 0.35, 0.4), woodMat);
+    beam.position.set(0, 2.85, 0.4);
+    mineEntrance.add(beam);
+    // extra support planks visibly jutting out of the mountain face around the entrance
+    const plankGeo = new THREE.BoxGeometry(0.18, 0.18, 3.4);
+    [[-2.0, 2.2, -0.4, 0.35], [2.1, 1.7, -0.6, -0.25], [-1.6, 0.9, -0.8, 0.15], [1.8, 3.1, -0.5, -0.4]].forEach(([px, py, pz, rx]) => {
+      const plank = new THREE.Mesh(plankGeo, woodMat);
+      plank.position.set(px, py, pz);
+      plank.rotation.x = rx;
+      plank.rotation.y = (mountainRand() - 0.5) * 0.5;
+      mineEntrance.add(plank);
+    });
+    const railGeo = new THREE.BoxGeometry(0.1, 0.08, 3.2);
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x5a5a5a, metalness: 0.6, roughness: 0.5 });
+    const railL = new THREE.Mesh(railGeo, railMat); railL.position.set(-0.5, 0.02, 1.8);
+    const railR = new THREE.Mesh(railGeo, railMat); railR.position.set(0.5, 0.02, 1.8);
+    mineEntrance.add(railL, railR);
+    const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 8), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
+    lantern.position.set(-1.15, 2.4, 0.4);
+    mineEntrance.add(lantern);
+
+    // tall glowing blue beacon beam so the mineshaft is spottable from across the map -
+    // fog disabled so it stays bright at distance instead of fading into the sky color
+    const shaftBeamMat = new THREE.MeshBasicMaterial({ color: 0x7fe0ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, fog: false });
+    const shaftBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.6, 42, 8, 1, true), shaftBeamMat);
+    shaftBeam.position.set(0, 21.5, 0.4);
+    mineEntrance.add(shaftBeam);
+    const beaconGlow = new THREE.PointLight(0x7fe0ff, 1.2, 60);
+    beaconGlow.position.set(0, 12, 0.4);
+    mineEntrance.add(beaconGlow);
+
+    mineEntrance.position.set(mineX, mineY, mineZ);
+    mineEntrance.rotation.y = mineFacing;
+    mineEntrance.userData = { type: 'mineEntrance', label: 'Enter Mineshaft', worldPos: new THREE.Vector3(mineX, mineY, mineZ), lantern, shaftBeam };
+    scene.add(mineEntrance);
+
+    // ---- cave interior (built far away, teleport target); size differs per planet ----
+    const caveRadius = planet.caveRadius || 75;
+    // ceiling kept much lower than radius would suggest - a tall ceiling sits outside light range and just reads as a flat black void
+    const caveHeight = Math.round(Math.min(40, Math.max(20, caveRadius * 0.13)));
+    caveOrigin = new THREE.Vector3(3000 + planetId * 500, -6, 3000);
+    caveGroup = new THREE.Group();
+    caveGroup.position.copy(caveOrigin);
+    const caveRand = seededRand(planetId * 47 + 501);
+    // reserve a clear lane for the secret vault trail (built further below) so stalagmites,
+    // pillars, and crystal clusters never spawn on top of it and block the path
+    const secretTrailZoneStartZ = -caveRadius * 0.58;
+    const secretTrailZoneEndZ = -caveRadius * 0.99;
+    const secretTrailHalfWidth = 6;
+    function inSecretTrailZone(x, z) {
+      if (!planet.secretRoom) return false;
+      return z <= secretTrailZoneStartZ && z >= secretTrailZoneEndZ && Math.abs(x) < secretTrailHalfWidth;
+    }
+    // uneven rocky floor with subtle noise bumps and mineral color streaking
+    const floorGeo = new THREE.CircleGeometry(caveRadius, 48);
+    const floorPos = floorGeo.attributes.position;
+    const floorSeed = planetId * 233 + 41;
+    const floorColorA = new THREE.Color(planet.ground2).lerp(new THREE.Color(0xffffff), 0.15);
+    const floorColorB = new THREE.Color(planet.ground2).multiplyScalar(0.85);
+    const floorColors = [];
+    for (let i = 0; i < floorPos.count; i++) {
+      const lx = floorPos.getX(i), ly = floorPos.getY(i);
+      const n = fbm(lx * 0.025, ly * 0.025, floorSeed, 3);
+      floorPos.setZ(i, (n - 0.5) * 0.5);
+      const c = floorColorA.clone().lerp(floorColorB, n);
+      floorColors.push(c.r, c.g, c.b);
+    }
+    floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(floorColors, 3));
+    floorGeo.computeVertexNormals();
+    const caveFloor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+    caveFloor.rotation.x = -Math.PI / 2;
+    caveFloor.position.y = -0.5;
+    caveGroup.add(caveFloor);
+
+    // organic, uneven cave wall - bulges and alcoves instead of a perfect cylinder
+    const wallGeo = new THREE.CylinderGeometry(caveRadius + 0.4, caveRadius + 0.4, caveHeight, 28, 10, true);
+    const wallPosAttr = wallGeo.attributes.position;
+    const wallSeed = planetId * 191 + 71;
+    const wallColorA = new THREE.Color(0x2a2018);
+    const wallColorB = new THREE.Color(0x1c150f);
+    const wallColors = [];
+    for (let i = 0; i < wallPosAttr.count; i++) {
+      const wx = wallPosAttr.getX(i), wy = wallPosAttr.getY(i), wz = wallPosAttr.getZ(i);
+      const theta = Math.atan2(wz, wx);
+      const n = fbm(Math.cos(theta) * 2.4, Math.sin(theta) * 2.4 + wy * 0.06, wallSeed, 3);
+      const bump = (n - 0.5) * Math.min(9, caveRadius * 0.035);
+      const r = Math.hypot(wx, wz);
+      const newR = r + bump;
+      wallPosAttr.setX(i, Math.cos(theta) * newR);
+      wallPosAttr.setZ(i, Math.sin(theta) * newR);
+      const c = wallColorA.clone().lerp(wallColorB, n);
+      wallColors.push(c.r, c.g, c.b);
+    }
+    wallGeo.setAttribute('color', new THREE.Float32BufferAttribute(wallColors, 3));
+    wallGeo.computeVertexNormals();
+    const caveWall = new THREE.Mesh(wallGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, side: THREE.BackSide }));
+    caveWall.position.y = caveHeight / 2 - 0.5;
+    caveGroup.add(caveWall);
+    // uneven ceiling: some spots hang lower, some rise higher, but it always stays flush with the wall rim
+    const ceilGeo = new THREE.CircleGeometry(caveRadius, 28);
+    const ceilPos = ceilGeo.attributes.position;
+    const ceilSeed = planetId * 311 + 17;
+    for (let i = 0; i < ceilPos.count; i++) {
+      const lx = ceilPos.getX(i), ly = ceilPos.getY(i);
+      const distFrac = Math.min(1, Math.hypot(lx, ly) / caveRadius);
+      const edgeFalloff = Math.max(0, 1 - distFrac);
+      const n = fbm(lx * 0.012, ly * 0.012, ceilSeed, 3);
+      ceilPos.setZ(i, (n - 0.5) * caveHeight * 0.55 * edgeFalloff);
+    }
+    ceilGeo.computeVertexNormals();
+    const caveCeil = new THREE.Mesh(ceilGeo, new THREE.MeshStandardMaterial({ color: 0x1a140f, roughness: 1, side: THREE.DoubleSide }));
+    caveCeil.rotation.x = -Math.PI / 2;
+    caveCeil.position.y = caveHeight - 0.5;
+    caveGroup.add(caveCeil);
+
+    // warm amber "dripstone cave" lighting, with one cool light for contrast (like the reference photo)
+    const caveLightA = new THREE.PointLight(0xffaa55, 1.3, caveRadius * 1.3);
+    caveLightA.position.set(0, caveHeight * 0.55, 0);
+    caveGroup.add(caveLightA);
+    const caveLightB = new THREE.PointLight(0xff8844, 0.85, caveRadius * 1.1);
+    caveLightB.position.set(caveRadius * 0.45, caveHeight * 0.4, -caveRadius * 0.45);
+    caveGroup.add(caveLightB);
+    const caveLightC = new THREE.PointLight(0x6fd7ff, 0.6, caveRadius * 1.1);
+    caveLightC.position.set(-caveRadius * 0.5, caveHeight * 0.4, caveRadius * 0.45);
+    caveGroup.add(caveLightC);
+    const caveLightD = new THREE.PointLight(0xffaa55, 0.7, caveRadius * 1.0);
+    caveLightD.position.set(caveRadius * 0.5, caveHeight * 0.35, caveRadius * 0.5);
+    caveGroup.add(caveLightD);
+
+    // dramatic god-ray light shafts from gaps in the ceiling
+    const rayCount = 3;
+    godRays = [];
+    for (let i = 0; i < rayCount; i++) {
+      const ra = caveRand() * Math.PI * 2;
+      const rr = caveRadius * (0.15 + caveRand() * 0.4);
+      const rayMat = new THREE.MeshBasicMaterial({ color: 0xffcf8a, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false });
+      const ray = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 4.5, caveHeight * 1.05, 10, 1, true), rayMat);
+      ray.position.set(Math.cos(ra) * rr, caveHeight * 0.48, Math.sin(ra) * rr);
+      ray.rotation.z = (caveRand() - 0.5) * 0.25;
+      ray.rotation.x = (caveRand() - 0.5) * 0.25;
+      caveGroup.add(ray);
+      godRays.push(ray);
+      const rayLight = new THREE.PointLight(0xffcf8a, 0.5, caveRadius * 0.5);
+      rayLight.position.set(ray.position.x, 1.5, ray.position.z);
+      caveGroup.add(rayLight);
     }
 
-    // rock corridor connecting the main chamber to the hidden room
-    const corridorMat = new THREE.MeshStandardMaterial({ color: 0x241a12, roughness: 1 });
-    const corridorZ = (corridorStartZ + corridorEndZ) / 2;
-    const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.8, corridorHeight, corridorLength), corridorMat);
-    wallL.position.set(-corridorWidth / 2, corridorHeight / 2 - 0.5, corridorZ);
-    caveGroup.add(wallL);
-    const wallR = wallL.clone();
-    wallR.position.x = corridorWidth / 2;
-    caveGroup.add(wallR);
-    const corridorCeil = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 1.6, 0.8, corridorLength), corridorMat);
-    corridorCeil.position.set(0, corridorHeight - 0.5, corridorZ);
-    caveGroup.add(corridorCeil);
-    // corridor lighting so the tunnel itself isn't a pitch-black void
-    const corridorLightA = new THREE.PointLight(0xffaa33, 0.9, 20);
-    corridorLightA.position.set(0, corridorHeight * 0.6, corridorStartZ - corridorLength * 0.25);
-    caveGroup.add(corridorLightA);
-    const corridorLightB = new THREE.PointLight(0xff8844, 0.9, 20);
-    corridorLightB.position.set(0, corridorHeight * 0.6, corridorStartZ - corridorLength * 0.75);
-    caveGroup.add(corridorLightB);
-
-    // the sealed vault room itself
-    const roomWallMat = new THREE.MeshStandardMaterial({ color: 0x351c18, roughness: 1, side: THREE.BackSide });
-    const roomWall = new THREE.Mesh(new THREE.CylinderGeometry(roomRadius, roomRadius, roomHeight, 20, 1, true), roomWallMat);
-    roomWall.position.set(0, roomHeight / 2 - 0.5, roomCenterZ);
-    caveGroup.add(roomWall);
-    const roomFloor = new THREE.Mesh(new THREE.CircleGeometry(roomRadius, 20), new THREE.MeshStandardMaterial({ color: 0x2a1712, roughness: 1 }));
-    roomFloor.rotation.x = -Math.PI / 2;
-    roomFloor.position.set(0, -0.5, roomCenterZ);
-    caveGroup.add(roomFloor);
-    const roomCeil = new THREE.Mesh(new THREE.CircleGeometry(roomRadius, 20), new THREE.MeshStandardMaterial({ color: 0x1c100c, roughness: 1, side: THREE.DoubleSide }));
-    roomCeil.rotation.x = -Math.PI / 2;
-    roomCeil.position.set(0, roomHeight - 0.5, roomCenterZ);
-    caveGroup.add(roomCeil);
-    const roomLight = new THREE.PointLight(0xff6a3a, 1.1, roomRadius * 1.4);
-    roomLight.position.set(0, roomHeight * 0.6, roomCenterZ);
-    caveGroup.add(roomLight);
-
-    // boss wall: a slab flush with the far wall (opposite the corridor entrance) that looks
-    // like solid rock until game.js triggers the burst - the boss then appears at
-    // bossSpawnLocal, just in front of where the wall used to be. Tinted per-planet: a rock
-    // base blended toward the boss's own accent color (falls back to icy blue for the yeti).
-    let bossWallPanel = null, bossSpawnLocal = null;
-    if (hasBoss) {
-      const bossAngle = -Math.PI / 2; // straight back from the room center, away from the door
-      const wallX = Math.cos(bossAngle) * roomRadius;
-      const wallZ = roomCenterZ + Math.sin(bossAngle) * roomRadius;
-      const bossDef = BOSSES[planet.secretRoomBoss];
-      const panelAccent = bossDef ? bossDef.accentColor : 0x8fd8ff;
-      const panelBase = new THREE.Color(planet.ground2).lerp(new THREE.Color(0xffffff), 0.35);
-      const panelMat = new THREE.MeshStandardMaterial({ color: panelBase, emissive: panelAccent, emissiveIntensity: 0.3, metalness: 0.15, roughness: 0.35 });
-      bossWallPanel = new THREE.Mesh(new THREE.BoxGeometry(10, 9, 1.4), panelMat);
-      bossWallPanel.position.set(wallX, 4.0, wallZ + 0.4);
-      caveGroup.add(bossWallPanel);
-      const panelLight = new THREE.PointLight(panelAccent, 0.7, 14);
-      panelLight.position.set(wallX, 4.5, wallZ + 2);
-      caveGroup.add(panelLight);
-      bossSpawnLocal = { x: wallX, y: 0, z: wallZ + 3.5 };
+    const glowOrbGeo = new THREE.SphereGeometry(0.5, 10, 10);
+    const glowOrbCount = Math.min(95, Math.round(caveRadius * 0.42));
+    for (let i = 0; i < glowOrbCount; i++) {
+      const a = (i / glowOrbCount) * Math.PI * 2;
+      const rr = caveRadius * (0.35 + (i % 3) * 0.2);
+      const ox = Math.cos(a) * rr, oz = Math.sin(a) * rr;
+      if (inSecretTrailZone(ox, oz)) continue;
+      const o = new THREE.Mesh(glowOrbGeo, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0x6fd7ff : 0xffaa55 }));
+      o.position.set(ox, 0.5, oz);
+      caveGroup.add(o);
     }
 
-    // blast door: normally retracted below the floor, rises to seal the corridor once triggered
-    const doorClosedY = corridorHeight / 2 - 0.5;
-    const doorOpenY = -corridorHeight - 1;
-    const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.6, roughness: 0.35 });
-    const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 0.4, corridorHeight, 0.7), doorMat);
-    doorMesh.position.set(0, doorOpenY, doorZ);
-    doorMesh.userData = { state: 'open', closedY: doorClosedY, openY: doorOpenY };
-    caveGroup.add(doorMesh);
-    const doorStripe = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth, 0.3, 0.75), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
-    doorStripe.position.set(0, 0, 0.02);
-    doorMesh.add(doorStripe);
+    // slow-drifting glowing dust motes for atmosphere
+    const moteGeo = new THREE.SphereGeometry(0.09, 6, 6);
+    const moteCount = Math.min(26, Math.round(caveRadius * 0.12));
+    dustMotes = [];
+    for (let i = 0; i < moteCount; i++) {
+      const mote = new THREE.Mesh(moteGeo, new THREE.MeshBasicMaterial({ color: caveRand() > 0.5 ? 0xffcf8a : 0x9fe0ff, transparent: true, opacity: 0.7 }));
+      const a = caveRand() * Math.PI * 2;
+      const r = caveRand() * caveRadius * 0.75;
+      mote.position.set(Math.cos(a) * r, 1 + caveRand() * (caveHeight * 0.6), Math.sin(a) * r);
+      mote.userData = { baseY: mote.position.y, baseR: r, angle: a, speed: 0.05 + caveRand() * 0.1, bobPhase: caveRand() * Math.PI * 2 };
+      caveGroup.add(mote);
+      dustMotes.push(mote);
+    }
 
-    // dormant prize crate at the room's center, lights up once the vault is cleared
-    const prizeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, emissive: 0x000000, metalness: 0.5, roughness: 0.4 });
-    const prizeCrate = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.1), prizeMat);
-    prizeCrate.position.set(0, 0.05, roomCenterZ);
-    caveGroup.add(prizeCrate);
-    const prizeGlow = new THREE.PointLight(0xffd35e, 0, 8);
-    prizeGlow.position.set(0, 1.2, roomCenterZ);
-    caveGroup.add(prizeGlow);
+    // scattered stalagmite formations rising from the floor (warm limestone tone)
+    const stalagGeo = new THREE.ConeGeometry(1, 1, 7);
+    const stalagMat = new THREE.MeshStandardMaterial({ color: 0x4a3a26, roughness: 1 });
+    const stalagCount = Math.min(130, Math.round(caveRadius * 0.6));
+    for (let i = 0; i < stalagCount; i++) {
+      let sx, sz, tries = 0;
+      do {
+        const a = caveRand() * Math.PI * 2;
+        const r = 6 + caveRand() * (caveRadius - 10);
+        sx = Math.cos(a) * r; sz = Math.sin(a) * r;
+        tries++;
+      } while (inSecretTrailZone(sx, sz) && tries < 6);
+      if (inSecretTrailZone(sx, sz)) continue;
+      const s = new THREE.Mesh(stalagGeo, stalagMat);
+      const h = 1.5 + caveRand() * 3.5;
+      s.scale.set(0.8 + caveRand() * 1.2, h, 0.8 + caveRand() * 1.2);
+      s.position.set(sx, -0.5 + h / 2, sz);
+      s.rotation.y = caveRand() * Math.PI;
+      caveGroup.add(s);
+    }
 
-    // ambush spawn points ringed around the room (world positions; game.js instantiates the
-    // enemies on trigger). Small squads get one ring; bigger swarms (like Rustholm's 15) split
-    // into an outer and inner ring so they don't overlap.
-    const enemySpawns = [];
-    const ambushCount = planet.secretRoomEnemyCount || 15;
-    const outerRingCount = 8;
-    if (ambushCount <= 6) {
-      for (let i = 0; i < ambushCount; i++) {
-        const a = (i / ambushCount) * Math.PI * 2 + 0.4;
-        const r = roomRadius * 0.5;
-        enemySpawns.push({
-          x: caveOrigin.x + Math.cos(a) * r,
-          y: caveOrigin.y,
-          z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
-        });
+    // dense hanging stalactites from the ceiling - the dominant feature of the reference cave
+    const stalactiteMat = new THREE.MeshStandardMaterial({ color: 0x5a4834, roughness: 1 });
+    const stalactiteCount = Math.min(160, Math.round(caveRadius * 0.75));
+    for (let i = 0; i < stalactiteCount; i++) {
+      let tx, tz, tries = 0;
+      do {
+        const a = caveRand() * Math.PI * 2;
+        const r = caveRand() * (caveRadius - 4);
+        tx = Math.cos(a) * r; tz = Math.sin(a) * r;
+        tries++;
+      } while (inSecretTrailZone(tx, tz) && tries < 6);
+      if (inSecretTrailZone(tx, tz)) continue;
+      const t = new THREE.Mesh(stalagGeo, stalactiteMat);
+      const h = 1.2 + caveRand() * 4.5;
+      t.scale.set(0.6 + caveRand() * 0.9, h, 0.6 + caveRand() * 0.9);
+      t.rotation.x = Math.PI;
+      t.position.set(tx, caveHeight - 0.5 - h / 2, tz);
+      t.rotation.y = caveRand() * Math.PI;
+      caveGroup.add(t);
+    }
+
+    // still reflective water pool on the cave floor
+    const poolRadius = caveRadius * (0.28 + caveRand() * 0.1);
+    // no scene envMap exists, so a near-black high-metalness material has nothing to
+    // reflect and renders as a flat black disc - use a lit, low-metalness "dark water"
+    // look instead so point lights actually show up on the surface
+    poolMat = new THREE.MeshStandardMaterial({ color: 0x123a4a, emissive: 0x0a1f28, emissiveIntensity: 0.3, metalness: 0.2, roughness: 0.1 });
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(poolRadius, 28), poolMat);
+    pool.rotation.x = -Math.PI / 2;
+    pool.position.set(caveRadius * 0.12, 0.01, -caveRadius * 0.12);
+    caveGroup.add(pool);
+
+    // a small waterfall trickling down the wall into the pool
+    const fallHeight = caveHeight * 0.55;
+    const fallX = pool.position.x + poolRadius * 0.7;
+    const fallZ = pool.position.z + poolRadius * 0.5;
+    waterMat = new THREE.MeshBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+    const waterfall = new THREE.Mesh(new THREE.PlaneGeometry(1.4, fallHeight), waterMat);
+    waterfall.position.set(fallX, fallHeight / 2, fallZ);
+    waterfall.rotation.y = Math.atan2(fallX - pool.position.x, fallZ - pool.position.z) + Math.PI;
+    caveGroup.add(waterfall);
+    splashMat = new THREE.MeshBasicMaterial({ color: 0xdfF4ff, transparent: true, opacity: 0.5 });
+    const splash = new THREE.Mesh(new THREE.CircleGeometry(1.6, 12), splashMat);
+    splash.rotation.x = -Math.PI / 2;
+    splash.position.set(fallX, 0.03, fallZ);
+    caveGroup.add(splash);
+
+    // glowing mineral crystal clusters, color-matched to this planet's outfit accent
+    const crystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.55, metalness: 0.3, roughness: 0.3 });
+    const crystalGeo = new THREE.ConeGeometry(0.4, 1, 5);
+    const crystalClusterCount = Math.min(32, Math.round(caveRadius / 10));
+    for (let i = 0; i < crystalClusterCount; i++) {
+      let cx, cz, tries = 0;
+      do {
+        const a = caveRand() * Math.PI * 2;
+        const r = 8 + caveRand() * (caveRadius - 14);
+        cx = Math.cos(a) * r; cz = Math.sin(a) * r;
+        tries++;
+      } while (inSecretTrailZone(cx, cz) && tries < 6);
+      if (inSecretTrailZone(cx, cz)) continue;
+      const cluster = new THREE.Group();
+      const shardCount = 3 + Math.floor(caveRand() * 3);
+      for (let j = 0; j < shardCount; j++) {
+        const shard = new THREE.Mesh(crystalGeo, crystalMat);
+        const h = 0.6 + caveRand() * 1.4;
+        shard.scale.set(0.6 + caveRand() * 0.6, h, 0.6 + caveRand() * 0.6);
+        shard.position.set((caveRand() - 0.5) * 1.2, -0.5 + h / 2, (caveRand() - 0.5) * 1.2);
+        shard.rotation.z = (caveRand() - 0.5) * 0.3;
+        cluster.add(shard);
       }
-    } else {
-      for (let i = 0; i < ambushCount; i++) {
-        const ring = i < outerRingCount ? 0 : 1;
-        const idxInRing = ring === 0 ? i : i - outerRingCount;
-        const ringCount = ring === 0 ? outerRingCount : (ambushCount - outerRingCount);
-        const a = (idxInRing / ringCount) * Math.PI * 2 + ring * 0.35;
-        const r = roomRadius * (ring === 0 ? 0.65 : 0.32);
-        enemySpawns.push({
-          x: caveOrigin.x + Math.cos(a) * r,
-          y: caveOrigin.y,
-          z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
-        });
-      }
+      cluster.position.set(cx, 0, cz);
+      caveGroup.add(cluster);
     }
 
-    secretRoom = {
-      doorMesh, doorStripe, prizeCrate, prizeGlow,
-      roomCenter: { x: 0, z: roomCenterZ }, roomRadius,
-      enemySpawns,
-      boss: hasBoss ? {
-        type: planet.secretRoomBoss,
-        wallPanel: bossWallPanel,
-        spawnPos: { x: caveOrigin.x + bossSpawnLocal.x, y: caveOrigin.y, z: caveOrigin.z + bossSpawnLocal.z },
-        triggered: false,
-      } : null,
-      triggered: false, resolved: false, remaining: 0, activeEnemies: [],
-    };
-  }
+    // salvage caches and coin pickups underground too, so exploring is worth it
+    caveScrapPickups = [];
+    const caveScrapCount = Math.min(20, Math.round(caveRadius / 12));
+    for (let i = 0; i < caveScrapCount; i++) {
+      const a = caveRand() * Math.PI * 2;
+      const r = 5 + caveRand() * (caveRadius - 10);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), new THREE.MeshStandardMaterial({ color: 0x8899a5, metalness: 0.7, roughness: 0.4 }));
+      const localPos = new THREE.Vector3(Math.cos(a) * r, 0.3, Math.sin(a) * r);
+      m.position.copy(localPos);
+      m.userData = { type: 'cache', collected: false, spin: caveRand() * 10, worldPos: caveOrigin.clone().add(localPos) };
+      caveGroup.add(m);
+      caveScrapPickups.push(m);
+    }
+    caveCoinPickups = [];
+    const caveCoinCount = Math.min(18, Math.round(caveRadius / 15));
+    for (let i = 0; i < caveCoinCount; i++) {
+      const a = caveRand() * Math.PI * 2;
+      const r = 5 + caveRand() * (caveRadius - 10);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14), new THREE.MeshStandardMaterial({ color: 0xffd35e, metalness: 0.8, roughness: 0.25, emissive: 0x553d00, emissiveIntensity: 0.3 }));
+      m.rotation.x = Math.PI / 2;
+      const localPos = new THREE.Vector3(Math.cos(a) * r, 0.35, Math.sin(a) * r);
+      m.position.copy(localPos);
+      m.userData = { type: 'coin', collected: false, value: 5 + Math.floor(caveRand() * 10), worldPos: caveOrigin.clone().add(localPos) };
+      caveGroup.add(m);
+      caveCoinPickups.push(m);
+    }
 
-  // cave exit: bottom of a mineshaft, with a ladder climbing up out of view
-  const caveExit = new THREE.Group();
-  const exitWoodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
-  const railGeoExit = new THREE.CylinderGeometry(0.05, 0.05, 8, 6);
-  const ladderRailL = new THREE.Mesh(railGeoExit, exitWoodMat); ladderRailL.position.set(-0.5, 4, 0);
-  const ladderRailR = new THREE.Mesh(railGeoExit, exitWoodMat); ladderRailR.position.set(0.5, 4, 0);
-  caveExit.add(ladderRailL, ladderRailR);
-  for (let i = 0; i < 9; i++) {
-    const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), exitWoodMat);
-    rung.rotation.z = Math.PI / 2;
-    rung.position.set(0, 0.6 + i * 0.9, 0);
-    caveExit.add(rung);
+    // rock columns that span floor to ceiling - bumpy, noise-displaced surface instead of a smooth cylinder
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x1e1e26, roughness: 1 });
+    const pillarRand = seededRand(planetId * 71 + 909);
+    const pillarCount = Math.min(34, Math.max(4, Math.round(caveRadius / 12)));
+    for (let i = 0; i < pillarCount; i++) {
+      let px0, pz0, tries = 0;
+      do {
+        const a = pillarRand() * Math.PI * 2;
+        const r = 12 + pillarRand() * (caveRadius - 20);
+        px0 = Math.cos(a) * r; pz0 = Math.sin(a) * r;
+        tries++;
+      } while (inSecretTrailZone(px0, pz0) && tries < 6);
+      if (inSecretTrailZone(px0, pz0)) continue;
+      const radiusTop = 0.6 + pillarRand() * 0.8;
+      const radiusBottom = 0.9 + pillarRand() * 1.1;
+      const pillarGeo = new THREE.CylinderGeometry(radiusTop, radiusBottom, caveHeight, 8, 6);
+      const pillarPos = pillarGeo.attributes.position;
+      const pillarSeed = planetId * 613 + i * 37 + 5;
+      for (let v = 0; v < pillarPos.count; v++) {
+        const px = pillarPos.getX(v), py = pillarPos.getY(v), pz = pillarPos.getZ(v);
+        const theta = Math.atan2(pz, px);
+        const n = fbm(Math.cos(theta) * 2 + i, Math.sin(theta) * 2 + py * 0.15, pillarSeed, 2);
+        const bump = 1 + (n - 0.5) * 0.34;
+        pillarPos.setX(v, px * bump);
+        pillarPos.setZ(v, pz * bump);
+      }
+      pillarGeo.computeVertexNormals();
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(px0, caveHeight / 2 - 0.5, pz0);
+      pillar.rotation.y = pillarRand() * Math.PI;
+      caveGroup.add(pillar);
+    }
+
+    // cave loot chests (two, spread across the bigger room)
+    const chestMat = new THREE.MeshStandardMaterial({ color: 0xd4a531, metalness: 0.5, roughness: 0.4 });
+    chest = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 0.9), chestMat);
+    chest.position.set(0, -0.05, -caveRadius * 0.55);
+    chest.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest.position) };
+    caveGroup.add(chest);
+
+    chest2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 0.8), chestMat.clone());
+    chest2.position.set(caveRadius * 0.5, -0.12, caveRadius * 0.4);
+    chest2.userData = { type: 'caveLoot', collected: false, worldPos: caveOrigin.clone().add(chest2.position) };
+    caveGroup.add(chest2);
+    caveTreasures = [chest, chest2];
+
+    // material chests tucked in the cave - the "special area" materials, worth more per chest
+    // than the ones scattered on the surface since they take real effort (a whole cave) to reach
+    caveOreChests = [];
+    const caveOreChestCount = 5;
+    for (let i = 0; i < caveOreChestCount; i++) {
+      let cox, coz, tries = 0;
+      do {
+        const a = caveRand() * Math.PI * 2;
+        const r = 10 + caveRand() * (caveRadius - 18);
+        cox = Math.cos(a) * r; coz = Math.sin(a) * r;
+        tries++;
+      } while (inSecretTrailZone(cox, coz) && tries < 6);
+      if (inSecretTrailZone(cox, coz)) continue;
+      const oreChest = buildMaterialChest(cox, -0.1, coz, caveRand() * Math.PI, caveRand);
+      oreChest.userData.amount = 8 + Math.floor(caveRand() * 5);
+      oreChest.userData.worldPos = caveOrigin.clone().add(oreChest.position);
+      caveGroup.add(oreChest);
+      caveOreChests.push(oreChest);
+    }
+
+    // special suit pickup, unique per planet, permanently reskins the astronaut
+    const outfitColor = planet.outfitColor || 0xffffff;
+    outfit = new THREE.Group();
+    const outfitMat = new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.55, metalness: 0.45, roughness: 0.3 });
+    const outfitTrimMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: outfitColor, emissiveIntensity: 0.8, metalness: 0.5, roughness: 0.2 });
+
+    const outfitTorso = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.7, 0.35), outfitMat);
+    outfitTorso.position.y = 0.55;
+    outfit.add(outfitTorso);
+    const outfitChestLight = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.05), outfitTrimMat);
+    outfitChestLight.position.set(0, 0.62, 0.19);
+    outfit.add(outfitChestLight);
+
+    // shoulder pauldrons
+    const padGeo = new THREE.BoxGeometry(0.24, 0.16, 0.3);
+    const padL = new THREE.Mesh(padGeo, outfitTrimMat); padL.position.set(-0.32, 0.86, 0);
+    const padR = new THREE.Mesh(padGeo, outfitTrimMat); padR.position.set(0.32, 0.86, 0);
+    outfit.add(padL, padR);
+
+    // small arms
+    const outfitArmGeo = new THREE.BoxGeometry(0.15, 0.42, 0.17);
+    const outfitArmL = new THREE.Mesh(outfitArmGeo, outfitMat); outfitArmL.position.set(-0.34, 0.55, 0); outfitArmL.rotation.z = 0.18;
+    const outfitArmR = new THREE.Mesh(outfitArmGeo, outfitMat); outfitArmR.position.set(0.34, 0.55, 0); outfitArmR.rotation.z = -0.18;
+    outfit.add(outfitArmL, outfitArmR);
+
+    // helmet with glowing visor
+    const outfitHead = new THREE.Mesh(new THREE.SphereGeometry(0.26, 14, 12), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 }));
+    outfitHead.position.y = 1.05;
+    outfit.add(outfitHead);
+    const outfitVisor = new THREE.Mesh(new THREE.SphereGeometry(0.19, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6), new THREE.MeshStandardMaterial({ color: outfitColor, emissive: outfitColor, emissiveIntensity: 0.9, metalness: 0.6, roughness: 0.15 }));
+    outfitVisor.position.set(0, 1.05, 0.12);
+    outfitVisor.rotation.x = -0.15;
+    outfit.add(outfitVisor);
+    const outfitAntenna = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.18, 5), outfitTrimMat);
+    outfitAntenna.position.set(0, 1.28, 0);
+    outfit.add(outfitAntenna);
+
+    // twin display rings, like a trophy pedestal
+    const outfitRing = new THREE.Mesh(new THREE.TorusGeometry(0.6, 0.04, 8, 20), new THREE.MeshBasicMaterial({ color: outfitColor }));
+    outfitRing.rotation.x = Math.PI / 2;
+    outfitRing.position.y = 0.05;
+    outfit.add(outfitRing);
+    const outfitRing2 = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.025, 8, 20), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    outfitRing2.rotation.x = Math.PI / 2;
+    outfitRing2.position.y = 1.4;
+    outfit.add(outfitRing2);
+
+    outfit.position.set(-caveRadius * 0.5, 0.1, caveRadius * 0.35);
+    outfit.userData = { type: 'caveOutfit', collected: false, suitColor: outfitColor, worldPos: caveOrigin.clone().add(outfit.position), ring2: outfitRing2 };
+    caveGroup.add(outfit);
+
+    // cave enemy spawn points (positions only; game.js instantiates the actual enemies)
+    caveEnemySpawns = [];
+    const caveEnemyCount = Math.min(10, Math.max(3, Math.round(caveRadius / 15)));
+    for (let i = 0; i < caveEnemyCount; i++) {
+      const a = (i / caveEnemyCount) * Math.PI * 2 + 0.6;
+      const r = caveRadius * 0.5;
+      caveEnemySpawns.push({ x: caveOrigin.x + Math.cos(a) * r, y: caveOrigin.y, z: caveOrigin.z + Math.sin(a) * r });
+    }
+
+    // ---- secret ambush vault: hidden room reached via a marked trail, seals shut on entry ----
+    secretRoom = null;
+    if (planet.secretRoom) {
+      const hasBoss = !!planet.secretRoomBoss;
+      const corridorWidth = 5;
+      const corridorHeight = 6.4;
+      const trailStartZ = -caveRadius * 0.62;
+      const corridorStartZ = -caveRadius * 0.95;
+      const corridorLength = 30;
+      const corridorEndZ = corridorStartZ - corridorLength;
+      const roomRadius = hasBoss ? 36 : 22; // extra-large room when a boss needs room to loom
+      const roomHeight = Math.min(caveHeight, 16);
+      const roomCenterZ = corridorEndZ - roomRadius - 4;
+      const doorZ = corridorEndZ;
+
+      // glowing trail markers leading from the main chamber to the vault entrance - lit by
+      // real point lights every couple of markers, since emissive material alone doesn't
+      // cast any light and the cave's ambient light is dimmed way down while inCave
+      const trailMat = new THREE.MeshStandardMaterial({ color: 0xffcf6a, emissive: 0xffaa33, emissiveIntensity: 0.9, roughness: 0.4 });
+      const trailCount = 11;
+      for (let i = 0; i < trailCount; i++) {
+        const tFrac = i / (trailCount - 1);
+        const tz = trailStartZ + (corridorStartZ - trailStartZ) * tFrac;
+        const tx = Math.sin(tFrac * Math.PI * 1.4) * 1.6;
+        const marker = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.32, 6), trailMat);
+        marker.position.set(tx, -0.32, tz);
+        caveGroup.add(marker);
+        if (i % 2 === 0) {
+          const trailLight = new THREE.PointLight(0xffaa33, 0.8, 16);
+          trailLight.position.set(tx, 1.6, tz);
+          caveGroup.add(trailLight);
+        }
+      }
+
+      // rock corridor connecting the main chamber to the hidden room
+      const corridorMat = new THREE.MeshStandardMaterial({ color: 0x241a12, roughness: 1 });
+      const corridorZ = (corridorStartZ + corridorEndZ) / 2;
+      const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.8, corridorHeight, corridorLength), corridorMat);
+      wallL.position.set(-corridorWidth / 2, corridorHeight / 2 - 0.5, corridorZ);
+      caveGroup.add(wallL);
+      const wallR = wallL.clone();
+      wallR.position.x = corridorWidth / 2;
+      caveGroup.add(wallR);
+      const corridorCeil = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 1.6, 0.8, corridorLength), corridorMat);
+      corridorCeil.position.set(0, corridorHeight - 0.5, corridorZ);
+      caveGroup.add(corridorCeil);
+      // corridor lighting so the tunnel itself isn't a pitch-black void
+      const corridorLightA = new THREE.PointLight(0xffaa33, 0.9, 20);
+      corridorLightA.position.set(0, corridorHeight * 0.6, corridorStartZ - corridorLength * 0.25);
+      caveGroup.add(corridorLightA);
+      const corridorLightB = new THREE.PointLight(0xff8844, 0.9, 20);
+      corridorLightB.position.set(0, corridorHeight * 0.6, corridorStartZ - corridorLength * 0.75);
+      caveGroup.add(corridorLightB);
+
+      // the sealed vault room itself
+      const roomWallMat = new THREE.MeshStandardMaterial({ color: 0x351c18, roughness: 1, side: THREE.BackSide });
+      const roomWall = new THREE.Mesh(new THREE.CylinderGeometry(roomRadius, roomRadius, roomHeight, 20, 1, true), roomWallMat);
+      roomWall.position.set(0, roomHeight / 2 - 0.5, roomCenterZ);
+      caveGroup.add(roomWall);
+      const roomFloor = new THREE.Mesh(new THREE.CircleGeometry(roomRadius, 20), new THREE.MeshStandardMaterial({ color: 0x2a1712, roughness: 1 }));
+      roomFloor.rotation.x = -Math.PI / 2;
+      roomFloor.position.set(0, -0.5, roomCenterZ);
+      caveGroup.add(roomFloor);
+      const roomCeil = new THREE.Mesh(new THREE.CircleGeometry(roomRadius, 20), new THREE.MeshStandardMaterial({ color: 0x1c100c, roughness: 1, side: THREE.DoubleSide }));
+      roomCeil.rotation.x = -Math.PI / 2;
+      roomCeil.position.set(0, roomHeight - 0.5, roomCenterZ);
+      caveGroup.add(roomCeil);
+      const roomLight = new THREE.PointLight(0xff6a3a, 1.1, roomRadius * 1.4);
+      roomLight.position.set(0, roomHeight * 0.6, roomCenterZ);
+      caveGroup.add(roomLight);
+
+      // boss wall: a slab flush with the far wall (opposite the corridor entrance) that looks
+      // like solid rock until game.js triggers the burst - the boss then appears at
+      // bossSpawnLocal, just in front of where the wall used to be. Tinted per-planet: a rock
+      // base blended toward the boss's own accent color (falls back to icy blue for the yeti).
+      let bossWallPanel = null, bossSpawnLocal = null;
+      if (hasBoss) {
+        const bossAngle = -Math.PI / 2; // straight back from the room center, away from the door
+        const wallX = Math.cos(bossAngle) * roomRadius;
+        const wallZ = roomCenterZ + Math.sin(bossAngle) * roomRadius;
+        const bossDef = BOSSES[planet.secretRoomBoss];
+        const panelAccent = bossDef ? bossDef.accentColor : 0x8fd8ff;
+        const panelBase = new THREE.Color(planet.ground2).lerp(new THREE.Color(0xffffff), 0.35);
+        const panelMat = new THREE.MeshStandardMaterial({ color: panelBase, emissive: panelAccent, emissiveIntensity: 0.3, metalness: 0.15, roughness: 0.35 });
+        bossWallPanel = new THREE.Mesh(new THREE.BoxGeometry(10, 9, 1.4), panelMat);
+        bossWallPanel.position.set(wallX, 4.0, wallZ + 0.4);
+        caveGroup.add(bossWallPanel);
+        const panelLight = new THREE.PointLight(panelAccent, 0.7, 14);
+        panelLight.position.set(wallX, 4.5, wallZ + 2);
+        caveGroup.add(panelLight);
+        bossSpawnLocal = { x: wallX, y: 0, z: wallZ + 3.5 };
+      }
+
+      // blast door: normally retracted below the floor, rises to seal the corridor once triggered
+      const doorClosedY = corridorHeight / 2 - 0.5;
+      const doorOpenY = -corridorHeight - 1;
+      const doorMat = new THREE.MeshStandardMaterial({ color: 0x3a3f4a, metalness: 0.6, roughness: 0.35 });
+      const doorMesh = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth + 0.4, corridorHeight, 0.7), doorMat);
+      doorMesh.position.set(0, doorOpenY, doorZ);
+      doorMesh.userData = { state: 'open', closedY: doorClosedY, openY: doorOpenY };
+      caveGroup.add(doorMesh);
+      const doorStripe = new THREE.Mesh(new THREE.BoxGeometry(corridorWidth, 0.3, 0.75), new THREE.MeshBasicMaterial({ color: 0xff3030 }));
+      doorStripe.position.set(0, 0, 0.02);
+      doorMesh.add(doorStripe);
+
+      // dormant prize crate at the room's center, lights up once the vault is cleared
+      const prizeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, emissive: 0x000000, metalness: 0.5, roughness: 0.4 });
+      const prizeCrate = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.1), prizeMat);
+      prizeCrate.position.set(0, 0.05, roomCenterZ);
+      caveGroup.add(prizeCrate);
+      const prizeGlow = new THREE.PointLight(0xffd35e, 0, 8);
+      prizeGlow.position.set(0, 1.2, roomCenterZ);
+      caveGroup.add(prizeGlow);
+
+      // ambush spawn points ringed around the room (world positions; game.js instantiates the
+      // enemies on trigger). Small squads get one ring; bigger swarms (like Rustholm's 15) split
+      // into an outer and inner ring so they don't overlap.
+      const enemySpawns = [];
+      const ambushCount = planet.secretRoomEnemyCount || 15;
+      const outerRingCount = 8;
+      if (ambushCount <= 6) {
+        for (let i = 0; i < ambushCount; i++) {
+          const a = (i / ambushCount) * Math.PI * 2 + 0.4;
+          const r = roomRadius * 0.5;
+          enemySpawns.push({
+            x: caveOrigin.x + Math.cos(a) * r,
+            y: caveOrigin.y,
+            z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
+          });
+        }
+      } else {
+        for (let i = 0; i < ambushCount; i++) {
+          const ring = i < outerRingCount ? 0 : 1;
+          const idxInRing = ring === 0 ? i : i - outerRingCount;
+          const ringCount = ring === 0 ? outerRingCount : (ambushCount - outerRingCount);
+          const a = (idxInRing / ringCount) * Math.PI * 2 + ring * 0.35;
+          const r = roomRadius * (ring === 0 ? 0.65 : 0.32);
+          enemySpawns.push({
+            x: caveOrigin.x + Math.cos(a) * r,
+            y: caveOrigin.y,
+            z: caveOrigin.z + roomCenterZ + Math.sin(a) * r,
+          });
+        }
+      }
+
+      secretRoom = {
+        doorMesh, doorStripe, prizeCrate, prizeGlow,
+        roomCenter: { x: 0, z: roomCenterZ }, roomRadius,
+        enemySpawns,
+        boss: hasBoss ? {
+          type: planet.secretRoomBoss,
+          wallPanel: bossWallPanel,
+          spawnPos: { x: caveOrigin.x + bossSpawnLocal.x, y: caveOrigin.y, z: caveOrigin.z + bossSpawnLocal.z },
+          triggered: false,
+        } : null,
+        triggered: false, resolved: false, remaining: 0, activeEnemies: [],
+      };
+    }
+
+    // cave exit: bottom of a mineshaft, with a ladder climbing up out of view
+    caveExit = new THREE.Group();
+    const exitWoodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
+    const railGeoExit = new THREE.CylinderGeometry(0.05, 0.05, 8, 6);
+    const ladderRailL = new THREE.Mesh(railGeoExit, exitWoodMat); ladderRailL.position.set(-0.5, 4, 0);
+    const ladderRailR = new THREE.Mesh(railGeoExit, exitWoodMat); ladderRailR.position.set(0.5, 4, 0);
+    caveExit.add(ladderRailL, ladderRailR);
+    for (let i = 0; i < 9; i++) {
+      const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.1, 6), exitWoodMat);
+      rung.rotation.z = Math.PI / 2;
+      rung.position.set(0, 0.6 + i * 0.9, 0);
+      caveExit.add(rung);
+    }
+    exitLight = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
+    exitLight.position.set(0.9, 1.6, 0);
+    caveExit.add(exitLight);
+    caveExit.position.set(0, 0, caveRadius * 0.4);
+    caveExit.userData = { type: 'caveExit', label: 'Exit Mineshaft', worldPos: caveOrigin.clone().add(caveExit.position) };
+    caveGroup.add(caveExit);
+    scene.add(caveGroup);
   }
-  const exitLight = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), new THREE.MeshStandardMaterial({ color: 0xffcc66, emissive: 0xffaa33, emissiveIntensity: 0.9 }));
-  exitLight.position.set(0.9, 1.6, 0);
-  caveExit.add(exitLight);
-  caveExit.position.set(0, 0, caveRadius * 0.4);
-  caveExit.userData = { type: 'caveExit', label: 'Exit Mineshaft', worldPos: caveOrigin.clone().add(caveExit.position) };
-  caveGroup.add(caveExit);
-  scene.add(caveGroup);
 
   // ---- rocket wreck (vehicle) spot handled by vehicles.js, expose ground height there ----
   const wreckY = groundHeightFn(planet.wreckPos[0], planet.wreckPos[2]);
@@ -1517,7 +1613,7 @@ function buildPlanetScene(planetId) {
     scene, groundHeightFn,
     planet, ambient, skyGroup,
     spawnPoint: { x: 0, z: 6 },
-    beacon, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
+    beacon, terraformDesk, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
     caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
     caveScrapPickups, caveCoinPickups,
     shuttleWreck: shuttleGroup, oreChests, caveOreChests,
@@ -1588,13 +1684,15 @@ function buildPlanetScene(planetId) {
       });
       beaconLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       if (lostRocket && !lostRocket.userData.found) lostRocket.rotation.y = Math.sin(t * 0.3) * 0.05;
-      exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
       landmark.userData.glowParts.forEach((m) => { m.emissiveIntensity = 0.7 + Math.sin(t * 2.2) * 0.4; });
-      mineEntrance.userData.lantern.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.3;
-      mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
-      waterMat.opacity = 0.45 + Math.sin(t * 9) * 0.12;
-      splashMat.opacity = 0.35 + Math.sin(t * 6) * 0.15;
-      poolMat.emissiveIntensity = 0.24 + Math.sin(t * 1.3) * 0.1;
+      if (CAVES_ENABLED) {
+        exitLight.material.emissiveIntensity = 0.6 + Math.sin(t * 3) * 0.3;
+        mineEntrance.userData.lantern.material.emissiveIntensity = 0.7 + Math.sin(t * 4) * 0.3;
+        mineEntrance.userData.shaftBeam.material.opacity = 0.2 + Math.sin(t * 2) * 0.12;
+        waterMat.opacity = 0.45 + Math.sin(t * 9) * 0.12;
+        splashMat.opacity = 0.35 + Math.sin(t * 6) * 0.15;
+        poolMat.emissiveIntensity = 0.24 + Math.sin(t * 1.3) * 0.1;
+      }
       godRays.forEach((ray, i) => { ray.material.opacity = 0.1 + Math.sin(t * 0.6 + i * 2) * 0.08; });
       dustMotes.forEach((m) => {
         const u = m.userData;

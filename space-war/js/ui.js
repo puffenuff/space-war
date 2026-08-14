@@ -13,6 +13,9 @@ function showHUD(show) {
   $('hud').classList.toggle('hidden', !show);
   $('btn-missions').classList.toggle('hidden', !show);
   $('btn-craft').classList.toggle('hidden', !show);
+  $('btn-gear').classList.toggle('hidden', !show);
+  $('btn-travel').classList.toggle('hidden', !show);
+  $('btn-tech').classList.toggle('hidden', !show);
 }
 
 function setContinueEnabled(enabled) {

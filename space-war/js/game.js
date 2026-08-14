@@ -20,16 +20,16 @@ window.addEventListener('resize', resize);
 resize();
 
 initControls(canvas);
+setCurrentPlanetIdGetter(() => currentPlanetId);
 
 // ===================== GAME STATE MACHINE =====================
-let mode = 'title'; // title | base | planet | cave | space
+let mode = 'title'; // title | planet | space - no separate base hub anymore, each planet is its own self-contained world
 let currentPlanetId = null;
 let inCave = false;
 let caveReturnPos = null;
 let activeScene = null;
 let activeBuild = null;
 const planetBuilds = {};
-let baseBuild = null;
 
 const player = new Player({});
 let drivingVehicle = null; // { mesh, controller }
@@ -41,6 +41,7 @@ let spaceFlight = null;
 let digTarget = null;
 let digProgress = 0;
 let repairHoldProgress = 0;
+const miningPops = []; // little chunks that pop out of the ground when a deposit is mined
 
 let deathSequence = null; // non-null while the yeti execution cutscene is playing
 
@@ -119,21 +120,6 @@ function detachPlayer() {
   if (activeScene) player.removeFrom(activeScene);
 }
 
-function enterBase(spawn = true) {
-  mode = 'base'; inCave = false; currentPlanetId = null;
-  if (!baseBuild) baseBuild = buildBaseScene();
-  detachPlayer();
-  activeScene = baseBuild.scene;
-  activeBuild = baseBuild;
-  player.addTo(activeScene);
-  if (spawn) { player.mesh.position.set(baseBuild.spawnPoint.x, 0, baseBuild.spawnPoint.z); player.heading = Math.PI; }
-  ui.setLocationLabel('SPACE WAR BASE');
-  exitVehicleIfAny(false);
-  playMusicScene('base');
-  stopEngineRumble();
-  saveGame();
-}
-
 function ensurePlanetBuild(id) {
   if (planetBuilds[id]) return planetBuilds[id];
   const build = buildPlanetScene(id);
@@ -181,6 +167,7 @@ function ensurePlanetBuild(id) {
 
 function enterPlanet(id, opts = {}) {
   mode = 'planet'; inCave = false; currentPlanetId = id;
+  state.lastPlanetId = id; // so Load Game knows where to drop the player back in
   ensurePlanetMissions(id);
   const build = ensurePlanetBuild(id);
   detachPlayer();
@@ -233,6 +220,7 @@ function exitVehicleIfAny(keepScene = true) {
 function launchToSpace(destId, opts = {}) {
   mode = 'space';
   detachPlayer();
+  saveActiveProgressToPlanet(currentPlanetId); // flush the planet we're leaving before swapping away
   spaceFlight = new SpaceFlight(destId, { health: state.health, maxHealth: state.maxHealth, forcedCombat: !!opts.forced, travelGoal: opts.travelGoal });
   activeScene = spaceFlight.scene;
   ui.setLocationLabel('DEEP SPACE');
@@ -243,19 +231,17 @@ function launchToSpace(destId, opts = {}) {
   startEngineRumble();
 }
 
-function onArriveSpace(destId, progressionLaunch) {
-  state.health = Math.max(40, spaceFlight.health);
+// each planet's progress (coins/gear/upgrades/etc) is independent, but health carries through
+// the flight itself - you arrive banged up if the trip was rough, regardless of which planet
+function onArriveSpace(destId) {
+  const arrivalHealth = Math.max(40, spaceFlight.health);
   sfx.arrive();
-  if (progressionLaunch) {
-    const prevFrontier = destId - 1;
-    state.planets[prevFrontier].completed = true;
-    state.planets[destId].unlocked = true;
-    consumeRocketParts();
-    ui.showBigMessage(`PLANET ${prevFrontier} COMPLETE!`, `${PLANETS[destId].name} is now unlocked.`, 3400);
-    sfx.missionComplete();
-  } else {
-    ui.showBigMessage('ARRIVED', PLANETS[destId].name, 1800);
-  }
+  loadPlanetProgressToActive(destId);
+  applyUpgradeEffects(); // recompute maxHealth for the new planet's upgrades/base modules first
+  state.health = Math.min(state.maxHealth, arrivalHealth);
+  player.setWeapon(state.equippedWeapon);
+  player.setSuitColor(state.equippedSuitColor || 0xe8e8e8);
+  ui.showBigMessage('ARRIVED', PLANETS[destId].name, 1800);
   spaceFlight = null;
   enterPlanet(destId);
 }
@@ -273,10 +259,11 @@ function collectiblesTick(dt) {
       if (pPos.distanceTo(m.position) < range) {
         m.userData.collected = true;
         m.visible = false;
-        state.inventory.scrap += 1;
+        const c = 3 + Math.floor(Math.random() * 4);
+        state.coins += c;
         sfx.scrap();
         progressCollectNet(currentPlanetId, missionToast);
-        ui.showToast('+1 Scrap');
+        ui.showToast(`+${c} Coins (salvage)`);
         broadcastLoot('scrap', i);
       }
     });
@@ -307,10 +294,11 @@ function collectiblesTick(dt) {
       if (pPos.distanceTo(m.userData.worldPos) < range) {
         m.userData.collected = true;
         m.visible = false;
-        state.inventory.scrap += 1;
+        const c = 3 + Math.floor(Math.random() * 4);
+        state.coins += c;
         sfx.scrap();
         progressCollectNet(currentPlanetId, missionToast);
-        ui.showToast('+1 Scrap');
+        ui.showToast(`+${c} Coins (salvage)`);
         broadcastLoot('caveScrap', i);
       }
     });
@@ -351,7 +339,7 @@ function collectiblesTick(dt) {
 }
 
 // ===================== MULTIPLAYER: shared loot =====================
-// Fungible field pickups (scrap/coins/ore/cave treasure) are shared: once anyone in the
+// Fungible field pickups (salvage/coins/materials/cave treasure) are shared: once anyone in the
 // party grabs one it disappears for everyone, so party members aren't fighting over the
 // same rock. Unique progression items (rocket parts, outfits, blueprint chips) are NOT
 // shared this way - each player finds and keeps their own.
@@ -401,21 +389,16 @@ net.on('missionProgress', (msg) => {
 });
 
 function findNearestInteractable() {
-  if (mode === 'base') {
-    const cands = [...activeBuild.shops, activeBuild.padGroup, activeBuild.starMap, activeBuild.wardrobe, activeBuild.weaponsStand, activeBuild.codesStand];
-    if (!drivingVehicle) cands.push(activeBuild.baseRover);
-    return nearestOf(cands, (o) => o.position, [3.6, 4.2, 3.6, 3]);
-  }
   if (mode === 'planet') {
     const b = activeBuild;
     const list = [];
     if (!inCave) {
-      list.push(b.beacon);
       if (!b.vehicle.userData.repaired || !drivingVehicle) list.push(b.vehicle);
       b.digSites.forEach((d) => { if (!d.userData.dug) list.push(d); });
       (b.oreChests || []).forEach((c) => { if (!c.userData.collected) list.push(c); });
+      if (b.terraformDesk) list.push(b.terraformDesk);
       if (b.lostRocket) list.push(b.lostRocket);
-      list.push(b.mineEntrance);
+      if (b.mineEntrance) list.push(b.mineEntrance);
       if (!b.shuttleWreck.userData.searched) list.push(b.shuttleWreck);
     } else {
       const exitWorld = new THREE.Object3D();
@@ -426,7 +409,13 @@ function findNearestInteractable() {
     }
     // objects nested inside the cave group (worldPos set) need their absolute position, not
     // the local-to-cave-group one; everything else's .position is already scene-absolute
-    return nearestOf(list, (o) => (o.userData && o.userData.worldPos) ? o.userData.worldPos : o.position, list.map(() => (list.includes(b.lostRocket) ? 5 : 3)));
+    const oreChestRange = state.tech.deepScanner ? 4 : 3; // Deep Scanner tech: +1 mining reach
+    const ranges = list.map((o) => {
+      if (o === b.lostRocket) return 5;
+      if (o.userData && o.userData.type === 'oreChest') return oreChestRange;
+      return 3;
+    });
+    return nearestOf(list, (o) => (o.userData && o.userData.worldPos) ? o.userData.worldPos : o.position, ranges);
   }
   return null;
 }
@@ -443,48 +432,27 @@ function nearestOf(list, posFn, ranges) {
 }
 
 function promptLabelFor(obj) {
-  if (mode === 'base') {
-    const d = obj.userData;
-    if (d.type === 'shop') return `Enter ${d.label}`;
-    if (d.type === 'launchPad') return rocketReady() ? 'Assemble & Launch Rocket' : `Launch Pad (${rocketPartsCount()}/${Object.keys(state.rocketParts).length} parts)`;
-    if (d.type === 'starMap') return 'Open Star Map';
-    if (d.type === 'vehicle') return 'Enter Rover';
-    if (d.type === 'wardrobe') return 'Change Outfit';
-    if (d.type === 'weaponsStand') return 'Browse Weapons';
-    if (d.type === 'codesStand') return 'Enter Code';
-  } else {
-    const d = obj.userData;
-    if (d.type === 'returnBeacon') return 'Return to Base';
-    if (d.type === 'vehicle') return d.repaired ? 'Enter Rover' : `Hold to Repair (needs 2 Tools, have ${state.inventory.tools})`;
-    if (d.type === 'digSite') return 'Hold to Dig';
-    if (d.type === 'oreChest') return `Hold to Mine (${MATERIAL_BY_KEY[d.material].name})`;
-    if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
-    if (d.type === 'mineEntrance') return 'Enter Mineshaft';
-    if (d.type === 'caveExit') return 'Exit Mineshaft';
-    if (d.type === 'shuttleWreck') return 'Search the Crashed Shuttle';
-  }
+  const d = obj.userData;
+  if (d.type === 'vehicle') return d.repaired ? 'Enter Rover' : `Hold to Repair (needs 2 Tools, have ${state.inventory.tools})`;
+  if (d.type === 'digSite') return 'Hold to Dig';
+  if (d.type === 'oreChest') return `Hold to Mine (${MATERIAL_BY_KEY[d.material].name})`;
+  if (d.type === 'terraformDesk') return state.planets[currentPlanetId].terraformStation.built ? 'Open Terraform Computer' : `Build Terraform Computer (${formatCraftCost(TERRAFORM_DESK_COST)})`;
+  if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
+  if (d.type === 'mineEntrance') return 'Enter Mineshaft';
+  if (d.type === 'caveExit') return 'Exit Mineshaft';
+  if (d.type === 'shuttleWreck') return 'Search the Crashed Shuttle';
   return 'Interact';
 }
 
 // ===================== INTERACT HANDLING =====================
 function handleInteractTap(obj) {
   const d = obj.userData;
-  if (mode === 'base') {
-    if (d.type === 'shop') { openShop(d.shopKey); return; }
-    if (d.type === 'starMap') { openStarmap(); return; }
-    if (d.type === 'launchPad') { tryLaunch(); return; }
-    if (d.type === 'vehicle') { enterVehicle(obj); return; }
-    if (d.type === 'wardrobe') { openWardrobe(); return; }
-    if (d.type === 'weaponsStand') { openWeapons(); return; }
-    if (d.type === 'codesStand') { openCodes(); return; }
-  } else {
-    if (d.type === 'returnBeacon') { enterBase(); return; }
-    if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
-    if (d.type === 'lostRocket') { exploreLostRocket(); return; }
-    if (d.type === 'mineEntrance') { enterCave(obj); return; }
-    if (d.type === 'caveExit') { exitCave(); return; }
-    if (d.type === 'shuttleWreck') { searchShuttleWreck(obj); return; }
-  }
+  if (d.type === 'terraformDesk') { handleTerraformDeskTap(); return; }
+  if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
+  if (d.type === 'lostRocket') { exploreLostRocket(); return; }
+  if (d.type === 'mineEntrance') { enterCave(obj); return; }
+  if (d.type === 'caveExit') { exitCave(); return; }
+  if (d.type === 'shuttleWreck') { searchShuttleWreck(obj); return; }
 }
 
 function searchShuttleWreck(shuttle) {
@@ -694,9 +662,10 @@ function openCodes() {
       state.coins += entry.amount;
       ui.updateCoins(state.coins);
       feedback.textContent = `Code accepted! +${entry.amount} Coins`;
-    } else if (entry.reward === 'unlockAll') {
-      PLANET_ID_LIST.forEach((id) => { state.planets[id].unlocked = true; });
-      feedback.textContent = 'Code accepted! Every world is now unlocked.';
+    } else if (entry.reward === 'materials') {
+      MATERIALS.forEach((m) => { state.inventory.materials[m.key] += entry.amount; });
+      ui.updateMaterials(totalMaterials());
+      feedback.textContent = `Code accepted! +${entry.amount} of every material.`;
     }
     feedback.style.color = '#7fff9e';
     saveGame();
@@ -714,43 +683,38 @@ function openCodes() {
   setTimeout(() => codeInput.focus(), 50);
 }
 
-function openStarmap() {
+// every planet is freely travelable any time - no unlock-gating, no rocket parts required.
+// Each has its own fully independent progress (coins/gear/materials/etc), so this is really
+// picking which of your five separate playthroughs to continue, not "unlocking" anything.
+function openTravel() {
   const body = document.createElement('div');
+  if (mode !== 'planet') {
+    ui.openPanel('🌌 TRAVEL', body);
+    return;
+  }
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 8px;';
+  hint.textContent = "Each world keeps its own gear, materials, and coins - you'll arrive with just your health carried over from the trip.";
+  body.appendChild(hint);
   PLANET_ID_LIST.forEach((id) => {
     const p = state.planets[id];
     const row = document.createElement('div');
     row.className = 'starmap-row';
-    const status = p.completed ? 'Completed ✅' : p.unlocked ? 'Unlocked' : 'Locked 🔒';
+    const here = id === currentPlanetId;
+    const status = here ? "You're here" : p.completed ? 'Completed ✅' : 'Not yet visited';
     row.innerHTML = `<div><div class="si-name">${PLANETS[id].name}</div><div class="si-desc">${status}</div></div>`;
     const btn = document.createElement('button');
-    btn.textContent = 'Travel';
-    btn.disabled = !p.unlocked;
+    btn.textContent = here ? 'Current' : 'Travel';
+    btn.disabled = here;
     btn.onclick = () => {
       sfx.uiClick();
       ui.closePanel();
-      launchToSpace(id, { forced: false, travelGoal: 340 });
+      launchToSpace(id, { forced: false });
     };
     row.appendChild(btn);
     body.appendChild(row);
   });
-  ui.openPanel('🌌 STAR MAP', body);
-}
-
-function tryLaunch() {
-  const frontier = Math.max(...PLANET_ID_LIST.filter((id) => state.planets[id].unlocked));
-  if (frontier >= PLANET_COUNT) {
-    if (state.planets[PLANET_COUNT].lostRocketFound) ui.showToast('SPACE WAR complete! Explore freely.');
-    else ui.showToast('Find the Lost Rocket Ship on Xenar Prime!');
-    sfx.denied();
-    return;
-  }
-  if (!rocketReady()) {
-    const totalParts = Object.keys(state.rocketParts).length;
-    ui.showToast(`Need ${totalParts - rocketPartsCount()} more rocket part(s)! (${rocketPartsCount()}/${totalParts})`);
-    sfx.denied();
-    return;
-  }
-  launchToSpace(frontier + 1, { forced: true, travelGoal: 620 });
+  ui.openPanel('🌌 TRAVEL', body);
 }
 
 function exploreLostRocket() {
@@ -761,7 +725,7 @@ function exploreLostRocket() {
   if (activeBuild.lostRocket) { activeBuild.scene.remove(activeBuild.lostRocket); activeBuild.lostRocket = null; }
   saveGame();
   sfx.win();
-  ui.showBigMessage('🚀 LOST ROCKET FOUND!', 'Billy Bob has completed SPACE WAR! Keep exploring all nine worlds anytime.', 5000);
+  ui.showBigMessage('🚀 LOST ROCKET FOUND!', 'Billy Bob has completed SPACE WAR! Keep exploring all five worlds anytime.', 5000);
 }
 
 // ===================== DIG / REPAIR HOLD LOGIC =====================
@@ -789,7 +753,7 @@ function handleHold(obj, dt) {
   if (d.type === 'oreChest') {
     digTarget = obj;
     if (input.interactHeld) {
-      digProgress = Math.min(1, digProgress + dt / 1.8);
+      digProgress = Math.min(1, digProgress + dt / (state.tech.sturdyPickaxe ? 1.2 : 1.8));
       player.digging = true;
       ui.showDigProgress(digProgress);
       const step = Math.floor(digProgress * 6);
@@ -833,12 +797,45 @@ function completeDig(site) {
     const def = completeMissionByType(currentPlanetId, 'dig', missionToast);
     if (!def) { state.coins += 20; ui.showToast('+20 Coins'); sfx.coin(); }
   } else {
-    const c = 10 + Math.floor(Math.random() * 15);
-    state.coins += c; state.inventory.scrap += 1;
-    ui.showToast(`+${c} Coins, +1 Scrap`);
+    const c = 12 + Math.floor(Math.random() * 16);
+    state.coins += c;
+    ui.showToast(`+${c} Coins`);
     sfx.coin();
   }
   saveGame();
+}
+
+// a handful of small glowing chunks launch out of the deposit and tumble back down, so
+// mining reads as breaking material out of the ground rather than opening a container
+function spawnMiningPops(scene, position, color) {
+  for (let i = 0; i < 6; i++) {
+    const chunk = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.1 + Math.random() * 0.06, 0),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.6, metalness: 0.3, roughness: 0.3 })
+    );
+    chunk.position.copy(position);
+    chunk.position.y += 0.1;
+    chunk.userData.vel = new THREE.Vector3((Math.random() - 0.5) * 2.4, 3 + Math.random() * 1.8, (Math.random() - 0.5) * 2.4);
+    chunk.userData.spin = new THREE.Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8);
+    chunk.userData.life = 0.8;
+    scene.add(chunk);
+    miningPops.push(chunk);
+  }
+}
+
+function updateMiningPops(dt) {
+  for (let i = miningPops.length - 1; i >= 0; i--) {
+    const c = miningPops[i];
+    c.userData.vel.y -= 9 * dt;
+    c.position.addScaledVector(c.userData.vel, dt);
+    c.rotation.x += c.userData.spin.x * dt;
+    c.rotation.y += c.userData.spin.y * dt;
+    c.userData.life -= dt;
+    if (c.userData.life <= 0) {
+      if (c.parent) c.parent.remove(c);
+      miningPops.splice(i, 1);
+    }
+  }
 }
 
 function completeMineChest(chest) {
@@ -852,6 +849,7 @@ function completeMineChest(chest) {
   checkAtmosphereMission(currentPlanetId, missionToast);
   saveGame();
   const b = activeBuild;
+  spawnMiningPops(b.scene, chest.userData.worldPos || chest.position, matDef.color);
   const isSurface = (b.oreChests || []).includes(chest);
   const kind = isSurface ? 'ore' : 'caveOre';
   const idx = (isSurface ? b.oreChests : b.caveOreChests).indexOf(chest);
@@ -1062,8 +1060,8 @@ function respawnPlayer() {
   state.coins = Math.max(0, Math.floor(state.coins * 0.9));
   state.health = Math.floor(state.maxHealth * 0.5);
   sfx.knockedOut();
-  enterBase();
-  ui.showToast('Knocked out! Rescued back to Base.');
+  enterPlanet(currentPlanetId);
+  ui.showToast('Knocked out! Rescued back to your pod.');
 }
 
 // ===================== YETI EXECUTION (special kill animation) =====================
@@ -1189,8 +1187,8 @@ function finishYetiExecution() {
   deathSequence = null;
   state.coins = Math.max(0, Math.floor(state.coins * 0.85));
   state.health = Math.floor(state.maxHealth * 0.5);
-  enterBase();
-  ui.showBigMessage('DECAPITATED!', 'The yeti tore Billy Bob apart. Rescued back to Base.', 3200);
+  enterPlanet(currentPlanetId);
+  ui.showBigMessage('DECAPITATED!', 'The yeti tore Billy Bob apart. Rescued back to your pod.', 3200);
 }
 
 // ===================== SECRET AMBUSH VAULT =====================
@@ -1284,11 +1282,7 @@ function tick() {
     spaceFlight.update(dt, {
       onEnemyKilled: () => { state.coins += 12; ui.updateCoins(state.coins); },
       onPlayerHit: (hp) => { ui.updateHealth(hp, state.maxHealth); },
-      onArrive: () => {
-        const frontier = Math.max(...PLANET_ID_LIST.filter((id) => state.planets[id].unlocked));
-        const progression = spaceFlight.destPlanetId === frontier + 1;
-        onArriveSpace(spaceFlight.destPlanetId, progression);
-      },
+      onArrive: () => onArriveSpace(spaceFlight.destPlanetId),
       onDestroyed: () => { spaceFlight.health = 20; spaceFlight.traveled = spaceFlight.travelGoal; },
     });
     spaceFlight.updateCamera(camera, dt);
@@ -1348,12 +1342,10 @@ function tick() {
   if (mode === 'planet') {
     updateGroundCombat(dt);
     syncSharedEnemies(dt);
+    updateMiningPops(dt);
     updateSecretRoom();
     activeBuild.tick(dt, elapsed);
     ui.renderMissionTracker(activeMissions(currentPlanetId));
-  } else if (mode === 'base') {
-    activeBuild.tick(dt, elapsed);
-    ui.renderMissionTracker([]);
   }
 
   ui.updateCoins(state.coins);
@@ -1404,7 +1396,6 @@ function localNetState() {
 }
 
 function currentSceneFor(m) {
-  if (m === 'base') return baseBuild ? baseBuild.scene : null;
   if (m === 'planet') return activeBuild ? activeBuild.scene : null;
   return null;
 }
@@ -1536,14 +1527,24 @@ function openCraft() {
   });
   body.appendChild(grid);
 
+  const terraformedCount = PLANET_ID_LIST.filter((id) => state.planets[id].terraform.complete).length;
+  const note = document.createElement('p');
+  note.style.cssText = 'color:#678;font-size:12px;padding:0 2px 10px;';
+  note.textContent = `Terraformed planets: ${terraformedCount}/${PLANET_COUNT} - build a Terraform Computer on the desk near your pod on each world to track its progress. Terraforming more worlds unlocks more to build here.`;
+  body.appendChild(note);
+
   BASE_MODULES.forEach((mod) => {
     const built = !!state.baseModules[mod.key];
+    const locked = !built && terraformedCount < (mod.requiresTerraformed || 0);
     const row = document.createElement('div');
     row.className = 'shop-item';
     row.innerHTML = `<div><div class="si-name">${mod.name}${built ? ' (Built)' : ''}</div><div class="si-desc">${mod.desc} &middot; +${mod.healthBonus} max health</div></div>`;
     const btn = document.createElement('button');
     if (built) {
       btn.textContent = 'Built';
+      btn.disabled = true;
+    } else if (locked) {
+      btn.textContent = `Terraform ${mod.requiresTerraformed} planets`;
       btn.disabled = true;
     } else {
       btn.textContent = formatCraftCost(mod.cost);
@@ -1569,9 +1570,252 @@ function openCraft() {
   ui.openPanel('🛠️ CRAFT', body);
 }
 
+// ===================== TERRAFORM COMPUTER =====================
+const TERRAFORM_DESK_COST = { titanium: 8, silicon: 8 };
+
+function handleTerraformDeskTap() {
+  const st = state.planets[currentPlanetId].terraformStation;
+  if (st.built) { openTerraformStation(); return; }
+  if (!canAffordCraftCost(TERRAFORM_DESK_COST)) {
+    ui.showToast(`Need ${formatCraftCost(TERRAFORM_DESK_COST)} to build a Terraform Computer.`);
+    sfx.denied();
+    return;
+  }
+  Object.entries(TERRAFORM_DESK_COST).forEach(([k, v]) => {
+    if (MATERIAL_BY_KEY[k]) state.inventory.materials[k] -= v;
+    else state.inventory[k] -= v;
+  });
+  st.built = true;
+  saveGame();
+  ui.updateMaterials(totalMaterials());
+  sfx.buy();
+  ui.showToast('Terraform Computer built!');
+  openTerraformStation();
+}
+
+// each of the 17 materials feeds exactly one of the 3 meters - see TERRAFORM_GROUPS (data.js)
+function depositMaterial(planetId, key) {
+  const group = terraformGroupOf(key);
+  if (!group) return;
+  const amount = state.inventory.materials[key];
+  if (amount <= 0) return;
+  const perUnit = TERRAFORM_METER_PER_UNIT * (state.tech.atmosphericProcessor ? 2 : 1);
+  const terra = state.planets[planetId].terraform;
+  terra[group] = Math.min(100, terra[group] + amount * perUnit);
+  state.inventory.materials[key] = 0;
+  checkTerraformComplete(planetId);
+  saveGame();
+}
+
+function checkTerraformComplete(planetId) {
+  const terra = state.planets[planetId].terraform;
+  if (terra.complete) return;
+  if (terra.oxygen >= 100 && terra.heat >= 100 && terra.pressure >= 100) {
+    terra.complete = true;
+    state.coins += 300;
+    ui.updateCoins(state.coins);
+    ui.showToast(`🌍 ${PLANETS[planetId].name} Terraformed! +300 Coins`);
+    sfx.win();
+  }
+}
+
+function extractorRateSeconds() { return state.tech.extractorMk2 ? 10 : 20; }
+function extractorCap() { return state.tech.cargoExpansion ? 80 : 40; }
+
+// idle-friendly: computed from real wall-clock time elapsed since the last check, so it
+// doesn't matter whether the player was actively nearby or just had the tab open elsewhere
+function tickExtractor(planetId) {
+  const ex = state.planets[planetId].extractor;
+  if (!ex.built) return;
+  const now = Date.now();
+  if (!ex.lastTick) { ex.lastTick = now; return; }
+  const rate = extractorRateSeconds();
+  const elapsedSec = (now - ex.lastTick) / 1000;
+  const units = Math.floor(elapsedSec / rate);
+  if (units <= 0) return;
+  ex.stock = Math.min(extractorCap(), ex.stock + units);
+  ex.lastTick += units * rate * 1000;
+}
+
+function openTerraformStation() {
+  const id = currentPlanetId;
+  tickExtractor(id);
+  const terra = state.planets[id].terraform;
+  const ex = state.planets[id].extractor;
+  const body = document.createElement('div');
+
+  const title = document.createElement('p');
+  title.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 8px;';
+  title.textContent = terra.complete
+    ? `${PLANETS[id].name} is fully terraformed!`
+    : `Deposit materials to raise ${PLANETS[id].name}'s oxygen, heat, and pressure to 100%.`;
+  body.appendChild(title);
+
+  [{ key: 'oxygen', label: 'Oxygen', color: '#6fd7ff' }, { key: 'heat', label: 'Heat', color: '#ff8a3d' }, { key: 'pressure', label: 'Pressure', color: '#b7a0ff' }].forEach((md) => {
+    const pct = Math.round(terra[md.key]);
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:8px;';
+    row.innerHTML = `<div style="font-size:12px;color:#cde;margin-bottom:2px;">${md.label} ${pct}%</div>
+      <div style="background:#1a2030;border-radius:6px;height:10px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${md.color};"></div>
+      </div>`;
+    body.appendChild(row);
+  });
+
+  const depositHeader = document.createElement('p');
+  depositHeader.style.cssText = 'color:#9ab;font-size:13px;padding:10px 2px 4px;';
+  depositHeader.textContent = 'Deposit materials:';
+  body.appendChild(depositHeader);
+
+  let anyDepositable = false;
+  MATERIALS.forEach((m) => {
+    const have = state.inventory.materials[m.key] || 0;
+    if (have <= 0) return;
+    anyDepositable = true;
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `<div><div class="si-name">${m.name} (${have})</div><div class="si-desc">Feeds ${terraformGroupOf(m.key)}</div></div>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Deposit';
+    btn.onclick = () => { depositMaterial(id, m.key); openTerraformStation(); };
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+  if (!anyDepositable) {
+    const p = document.createElement('p');
+    p.style.cssText = 'color:#678;font-size:12px;padding:2px;';
+    p.textContent = 'No materials to deposit right now - go mine some.';
+    body.appendChild(p);
+  }
+
+  const exHeader = document.createElement('p');
+  exHeader.style.cssText = 'color:#9ab;font-size:13px;padding:12px 2px 4px;';
+  exHeader.textContent = 'Resource Extractor';
+  body.appendChild(exHeader);
+
+  if (!state.tech.extractorMk1) {
+    const p = document.createElement('p');
+    p.style.cssText = 'color:#678;font-size:12px;padding:2px;';
+    p.textContent = 'Requires the Extractor Mk1 tech unlock (see the Tech panel).';
+    body.appendChild(p);
+  } else if (!ex.built) {
+    const cost = { [ex.material]: 8, tools: 5 };
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `<div><div class="si-name">Build Extractor</div><div class="si-desc">Passively mines ${MATERIAL_BY_KEY[ex.material].name} over time.</div></div>`;
+    const btn = document.createElement('button');
+    btn.textContent = formatCraftCost(cost);
+    btn.disabled = !canAffordCraftCost(cost);
+    btn.onclick = () => {
+      Object.entries(cost).forEach(([k, v]) => {
+        if (MATERIAL_BY_KEY[k]) state.inventory.materials[k] -= v; else state.inventory[k] -= v;
+      });
+      ex.built = true;
+      ex.lastTick = Date.now();
+      saveGame();
+      sfx.buy();
+      ui.showToast('Resource Extractor built!');
+      openTerraformStation();
+    };
+    row.appendChild(btn);
+    body.appendChild(row);
+  } else {
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `<div><div class="si-name">${MATERIAL_BY_KEY[ex.material].name} Extractor</div><div class="si-desc">Stockpiled: ${ex.stock}/${extractorCap()}</div></div>`;
+    const btn = document.createElement('button');
+    btn.textContent = 'Collect';
+    btn.disabled = ex.stock <= 0;
+    btn.onclick = () => {
+      state.inventory.materials[ex.material] += ex.stock;
+      ui.showToast(`+${ex.stock} ${MATERIAL_BY_KEY[ex.material].name}`);
+      ex.stock = 0;
+      saveGame();
+      sfx.scrap();
+      openTerraformStation();
+    };
+    row.appendChild(btn);
+    body.appendChild(row);
+  }
+
+  ui.openPanel(`🌍 ${PLANETS[id].name} TERRAFORM COMPUTER`, body);
+}
+
+// ===================== TECH TREE =====================
+function openTechTree() {
+  const body = document.createElement('div');
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 8px;';
+  hint.textContent = 'Permanent unlocks, paid for with materials. This is per-planet, like everything else in your inventory.';
+  body.appendChild(hint);
+
+  TECH_TREE.forEach((t) => {
+    const unlocked = !!state.tech[t.key];
+    const missingReq = t.requires.filter((r) => !state.tech[r]);
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `<div><div class="si-name">${t.name}${unlocked ? ' (Unlocked)' : ''}</div><div class="si-desc">${t.desc} &middot; ${t.effect}</div></div>`;
+    const btn = document.createElement('button');
+    if (unlocked) {
+      btn.textContent = 'Unlocked';
+      btn.disabled = true;
+    } else if (missingReq.length) {
+      btn.textContent = `Requires ${missingReq.map((r) => TECH_TREE.find((x) => x.key === r).name).join(', ')}`;
+      btn.disabled = true;
+    } else {
+      btn.textContent = formatCraftCost(t.cost);
+      btn.disabled = !canAffordCraftCost(t.cost);
+      btn.onclick = () => {
+        Object.entries(t.cost).forEach(([k, v]) => {
+          if (MATERIAL_BY_KEY[k]) state.inventory.materials[k] -= v;
+          else state.inventory[k] -= v;
+        });
+        state.tech[t.key] = true;
+        if (t.key === 'superAlloyForge') applyUpgradeEffects();
+        saveGame();
+        ui.updateMaterials(totalMaterials());
+        ui.updateHealth(state.health, state.maxHealth);
+        sfx.buy();
+        ui.showToast(`Unlocked: ${t.name}!`);
+        openTechTree();
+      };
+    }
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+  ui.openPanel('🔬 TECH TREE', body);
+}
+
+// ===================== GEAR MENU =====================
+function openGearMenu() {
+  const body = document.createElement('div');
+  const items = [
+    { label: '💾 Save Game', fn: () => { saveGameAs(state.saveName); sfx.buy(); ui.showToast(`Saved "${state.saveName}"`); } },
+    { label: '🧥 Wardrobe', fn: openWardrobe },
+    { label: '🔫 Weapons', fn: openWeapons },
+    { label: '⚡ Upgrades', fn: () => openShop('upgrades') },
+    { label: '🔧 Parts Shop', fn: () => openShop('parts') },
+    { label: '🛠 Tool Shop', fn: () => openShop('tools') },
+    { label: '🍔 Food Shop', fn: () => openShop('food') },
+    { label: '💻 Codes', fn: openCodes },
+  ];
+  items.forEach((it) => {
+    const btn = document.createElement('button');
+    btn.className = 'big-btn';
+    btn.style.cssText = 'display:block; width:100%; margin-bottom:8px; min-width:0;';
+    btn.textContent = it.label;
+    btn.onclick = () => { sfx.uiClick(); it.fn(); };
+    body.appendChild(btn);
+  });
+  ui.openPanel('🎒 GEAR', body);
+}
+
 // ===================== TITLE / BOOTSTRAP =====================
 document.getElementById('btn-missions').addEventListener('click', () => { sfx.uiClick(); openMissionLog(); });
 document.getElementById('btn-craft').addEventListener('click', () => { sfx.uiClick(); openCraft(); });
+document.getElementById('btn-gear').addEventListener('click', () => { sfx.uiClick(); openGearMenu(); });
+document.getElementById('btn-travel').addEventListener('click', () => { sfx.uiClick(); openTravel(); });
+document.getElementById('btn-tech').addEventListener('click', () => { sfx.uiClick(); openTechTree(); });
 ui.initPanelClose(() => { sfx.uiClick(); });
 
 document.getElementById('btn-mute').addEventListener('click', (e) => {
@@ -1580,19 +1824,106 @@ document.getElementById('btn-mute').addEventListener('click', (e) => {
   e.currentTarget.textContent = nowMuted ? '🔇' : '🔊';
 });
 
-function startPlaying(fromSave) {
-  unlockAudio();
-  if (fromSave) loadGame(); else resetState();
+// enters play on whichever planet the save is pointed at - shared by New Game (after picking
+// a starting planet), Load Game, and Join Game
+function beginPlanetPlay(id) {
+  loadPlanetProgressToActive(id);
   applyUpgradeEffects();
-  if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
+  player.setSuitColor(state.equippedSuitColor || 0xe8e8e8);
   player.setWeapon(state.equippedWeapon);
   ui.showTitleScreen(false);
   ui.showHUD(true);
-  enterBase();
+  enterPlanet(id);
 }
 
-document.getElementById('btn-new-game').addEventListener('click', () => startPlaying(false));
-document.getElementById('btn-continue').addEventListener('click', () => startPlaying(true));
+function resumePlanetIdFor(s) {
+  return (s.lastPlanetId && s.planets[s.lastPlanetId]) ? s.lastPlanetId : 1;
+}
+
+// ===================== NEW GAME =====================
+function openNewGamePrompt() {
+  const body = document.createElement('div');
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 4px;';
+  hint.textContent = 'Name your save, then pick a planet to start on. Each world keeps its own progress from here on.';
+  body.appendChild(hint);
+
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.className = 'code-input';
+  nameInput.placeholder = 'SAVE NAME';
+  nameInput.maxLength = 24;
+  nameInput.style.cssText = 'width:100%; margin-bottom:10px;';
+  body.appendChild(nameInput);
+
+  const planetHeader = document.createElement('p');
+  planetHeader.style.cssText = 'color:#9ab;font-size:13px;padding:4px 2px;';
+  planetHeader.textContent = 'Starting planet:';
+  body.appendChild(planetHeader);
+
+  let pickedId = 1;
+  const rowBtns = [];
+  const refreshPicks = () => { rowBtns.forEach(({ id, btn }) => { btn.textContent = id === pickedId ? 'Selected' : 'Pick'; btn.disabled = id === pickedId; }); };
+  PLANET_ID_LIST.forEach((id) => {
+    const row = document.createElement('div');
+    row.className = 'starmap-row';
+    row.innerHTML = `<div><div class="si-name">${PLANETS[id].name}</div></div>`;
+    const btn = document.createElement('button');
+    btn.onclick = () => { sfx.uiClick(); pickedId = id; refreshPicks(); };
+    rowBtns.push({ id, btn });
+    row.appendChild(btn);
+    body.appendChild(row);
+  });
+  refreshPicks();
+
+  const startBtn = document.createElement('button');
+  startBtn.className = 'big-btn';
+  startBtn.style.cssText = 'display:block; width:100%; margin-top:12px; min-width:0;';
+  startBtn.textContent = 'Start';
+  startBtn.onclick = () => {
+    unlockAudio();
+    sfx.uiClick();
+    ui.closePanel();
+    resetState(nameInput.value.trim() || 'Billy Bob');
+    beginPlanetPlay(pickedId);
+  };
+  body.appendChild(startBtn);
+
+  ui.openPanel('🚀 NEW GAME', body);
+  setTimeout(() => nameInput.focus(), 50);
+}
+document.getElementById('btn-new-game').addEventListener('click', () => { unlockAudio(); openNewGamePrompt(); });
+
+// ===================== LOAD GAME (multi-save-slot) =====================
+function openLoadGamePrompt() {
+  const body = document.createElement('div');
+  const names = listSaves();
+  if (names.length === 0) {
+    const p = document.createElement('p');
+    p.style.cssText = 'color:#9ab;font-size:13px;padding:6px 2px;';
+    p.textContent = 'No saves yet - start a New Game first.';
+    body.appendChild(p);
+  } else {
+    names.forEach((name) => {
+      const row = document.createElement('div');
+      row.className = 'starmap-row';
+      row.innerHTML = `<div><div class="si-name">${name}</div></div>`;
+      const btn = document.createElement('button');
+      btn.textContent = 'Load';
+      btn.onclick = () => {
+        unlockAudio();
+        sfx.uiClick();
+        ui.closePanel();
+        loadSaveByName(name);
+        beginPlanetPlay(resumePlanetIdFor(state));
+      };
+      row.appendChild(btn);
+      body.appendChild(row);
+    });
+  }
+  ui.openPanel('📂 LOAD GAME', body);
+}
+document.getElementById('btn-continue').addEventListener('click', () => { sfx.uiClick(); openLoadGamePrompt(); });
 
 // ===================== JOIN GAME (multiplayer) =====================
 function openJoinPrompt() {
@@ -1638,7 +1969,14 @@ function openJoinPrompt() {
       feedback.style.color = '#7fff9e';
       sfx.win();
       ui.closePanel();
-      startPlaying(hasSave());
+      unlockAudio();
+      const names = listSaves();
+      if (names.length > 0) {
+        loadSaveByName(names[0]);
+        beginPlanetPlay(resumePlanetIdFor(state));
+      } else {
+        openNewGamePrompt();
+      }
     }).catch((err) => {
       joinBtn.disabled = false;
       feedback.textContent = err && err.message ? err.message : 'Could not connect.';
@@ -1661,7 +1999,7 @@ document.getElementById('btn-join-game').addEventListener('click', () => { sfx.u
 function boot() {
   document.getElementById('btn-mute').textContent = isMuted() ? '🔇' : '🔊';
   ui.showLoading(false);
-  ui.setContinueEnabled(hasSave());
+  ui.setContinueEnabled(listSaves().length > 0);
   ui.showTitleScreen(true);
   ui.showHUD(false);
   requestAnimationFrame(tick);
