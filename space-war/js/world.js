@@ -467,9 +467,14 @@ function buildPlanetScene(planetId) {
     const ang = (i / edgeSampleCount) * Math.PI * 2;
     edgeHeightSum += groundHeightFn(Math.cos(ang) * (planet.size / 2 - 2), Math.sin(ang) * (planet.size / 2 - 2));
   }
+  // a ring, not a filled disc/plane - its inner radius clears the terrain square's farthest
+  // corners with margin, so it can never overlap (and potentially render in front of / hide)
+  // anything standing on the actual playable terrain
+  const skirtInner = Math.SQRT2 * (planet.size / 2) + 20;
+  const skirtOuter = planet.size * 5;
   const skirt = new THREE.Mesh(
-    new THREE.PlaneGeometry(planet.size * 5, planet.size * 5, 1, 1).rotateX(-Math.PI / 2),
-    new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 })
+    new THREE.RingGeometry(skirtInner, skirtOuter, 48, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1, side: THREE.DoubleSide })
   );
   skirt.position.y = (edgeHeightSum / edgeSampleCount) + 1.5;
   scene.add(skirt);
