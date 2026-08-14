@@ -138,12 +138,12 @@ function ensurePlanetBuild(id) {
   build.vehicle = createVehicle(build.planet.vehicleType || 'rover', build.wreckPos, state.planets[id].vehicleRepaired);
   build.scene.add(build.vehicle);
   build.enemySpawns.forEach((spawn) => {
-    const e = createGroundEnemy(spawn, build.planet.enemySkin);
+    const e = createGroundEnemy(spawn, build.planet.enemySkin, id);
     build.scene.add(e);
     build.enemies.push(e);
   });
   (build.caveEnemySpawns || []).forEach((spawn) => {
-    const e = createGroundEnemy(spawn, build.planet.enemySkin);
+    const e = createGroundEnemy(spawn, build.planet.enemySkin, id);
     build.scene.add(e);
     build.enemies.push(e);
   });
@@ -152,7 +152,7 @@ function ensurePlanetBuild(id) {
       const gx = build.lostRocketSurface.x + (i === 0 ? 8 : -8);
       const gz = build.lostRocketSurface.z + 6;
       const spawn = { x: gx, y: build.groundHeightFn(gx, gz), z: gz };
-      const guard = createGroundEnemy(spawn);
+      const guard = createGroundEnemy(spawn, build.planet.enemySkin, id);
       guard.userData.hp = 55; guard.userData.maxHp = 55;
       build.scene.add(guard);
       build.enemies.push(guard);
@@ -787,7 +787,7 @@ function updateGroundCombat(dt) {
       });
     } else {
       updateGroundEnemy(e, dt, player.mesh.position, (x, z) => getGroundHeightCurrent(x, z), (origin, dir) => {
-        const p = createProjectile(origin, dir, { color: 0xff5050, speed: 20, damage: 8, owner: 'enemy', life: 2.5 });
+        const p = createProjectile(origin, dir, { color: 0xff5050, speed: 20, damage: e.userData.damage || 8, owner: 'enemy', life: 2.5 });
         b.scene.add(p);
         b.enemyProjectiles.push(p);
         sfx.enemyShoot();
@@ -1006,7 +1006,7 @@ function triggerSecretRoom(b, sr) {
   sr.doorMesh.userData.state = 'closed';
   sr.remaining = sr.enemySpawns.length;
   sr.activeEnemies = sr.enemySpawns.map((spawn) => {
-    const e = createGroundEnemy(spawn, b.planet.enemySkin);
+    const e = createGroundEnemy(spawn, b.planet.enemySkin, currentPlanetId);
     const vaultHp = b.planet.enemySkin === 'miniYeti' ? 31 : 22;
     e.userData.hp = vaultHp; e.userData.maxHp = vaultHp;
     e.userData.secretRoom = true;

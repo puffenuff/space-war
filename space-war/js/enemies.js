@@ -1,6 +1,8 @@
 
 // ===================== GROUND RAIDER (or icy "mini yeti" skin on Cryovale) =====================
-function createGroundEnemy(spawn, skin = 'raider') {
+// planetId scales toughness/damage up on later worlds, so difficulty comes from real stat
+// growth, not just higher enemy counts
+function createGroundEnemy(spawn, skin = 'raider', planetId = 1) {
   const g = new THREE.Group();
   const isYeti = skin === 'miniYeti';
   const bodyMat = new THREE.MeshStandardMaterial({ color: isYeti ? 0xeaf6ff : 0x7a3030, roughness: isYeti ? 0.85 : 0.65, metalness: isYeti ? 0 : 0.2 });
@@ -53,9 +55,13 @@ function createGroundEnemy(spawn, skin = 'raider') {
 
   if (isYeti) g.scale.set(1.2, 1.2, 1.2); // stockier than a regular raider, still dwarfed by the boss
 
+  const tier = Math.max(0, planetId - 1);
+  const hp = (isYeti ? 42 : 30) + Math.floor(tier * 1.8);
+  const damage = 8 + Math.floor(tier * 0.9);
+
   g.position.set(spawn.x, spawn.y, spawn.z);
   g.userData = {
-    isEnemy: true, kind: 'ground', hp: isYeti ? 42 : 30, maxHp: isYeti ? 42 : 30,
+    isEnemy: true, kind: 'ground', hp, maxHp: hp, damage,
     home: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
     shootCooldown: 1 + Math.random(), wanderT: Math.random() * 10, wanderTarget: new THREE.Vector3(spawn.x, spawn.y, spawn.z),
     hitRadius: isYeti ? 1.8 : 1.5,

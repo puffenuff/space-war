@@ -253,7 +253,24 @@ class VehicleController {
     const speed = Math.abs(moveY) > 0.05 ? this.speed * Math.sign(moveY) : 0;
     this.vehicle.position.addScaledVector(dir, speed * dt);
     this.vehicle.position.y = this.getGroundHeight(this.vehicle.position.x, this.vehicle.position.z) + 0.05;
-    this.vehicle.rotation.y = u.heading + Math.PI;
+
+    // lean the body to match the slope under it - pitch along the direction of travel, roll
+    // across it - sampled a short distance out so it reads as sitting on the hill, not floating
+    const sampleD = 1.5;
+    const right = new THREE.Vector3(Math.cos(u.heading), 0, -Math.sin(u.heading));
+    const px = this.vehicle.position.x, pz = this.vehicle.position.z;
+    const hF = this.getGroundHeight(px + dir.x * sampleD, pz + dir.z * sampleD);
+    const hB = this.getGroundHeight(px - dir.x * sampleD, pz - dir.z * sampleD);
+    const hR = this.getGroundHeight(px + right.x * sampleD, pz + right.z * sampleD);
+    const hL = this.getGroundHeight(px - right.x * sampleD, pz - right.z * sampleD);
+    const targetPitch = Math.atan2(hB - hF, sampleD * 2);
+    const targetRoll = Math.atan2(hR - hL, sampleD * 2);
+    u.tiltPitch = (u.tiltPitch || 0) + (targetPitch - (u.tiltPitch || 0)) * Math.min(1, dt * 6);
+    u.tiltRoll = (u.tiltRoll || 0) + (targetRoll - (u.tiltRoll || 0)) * Math.min(1, dt * 6);
+    const yawQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), u.heading + Math.PI);
+    const tiltQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(u.tiltPitch, 0, u.tiltRoll, 'XYZ'));
+    this.vehicle.quaternion.copy(yawQuat).multiply(tiltQuat);
+
     u.wheels.forEach((w) => { w.rotation.x += speed * dt * 2; });
 
     // camera follows behind vehicle heading rather than free orbit

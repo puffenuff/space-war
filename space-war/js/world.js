@@ -486,7 +486,7 @@ function buildPlanetScene(planetId) {
   // ---- decorative rocks ----
   const rockGeo = new THREE.IcosahedronGeometry(1, 0);
   const rockMat = new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 });
-  const rockCount = Math.round(85 * (planet.size / 300));
+  const rockCount = Math.round(130 * (planet.size / 300));
   for (let i = 0; i < rockCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.9;
     const z = (rand() - 0.5) * planet.size * 0.9;
@@ -504,7 +504,7 @@ function buildPlanetScene(planetId) {
   // ---- scattered surface mineral crystal clusters, color-matched to this planet's outfit accent ----
   const surfaceCrystalMat = new THREE.MeshStandardMaterial({ color: planet.outfitColor || 0x6fd7ff, emissive: planet.outfitColor || 0x6fd7ff, emissiveIntensity: 0.5, metalness: 0.3, roughness: 0.3 });
   const surfaceCrystalGeo = new THREE.ConeGeometry(0.35, 1, 5);
-  const surfaceCrystalCount = Math.round(18 * (planet.size / 300));
+  const surfaceCrystalCount = Math.round(30 * (planet.size / 300));
   for (let i = 0; i < surfaceCrystalCount; i++) {
     const x = (rand() - 0.5) * planet.size * 0.85;
     const z = (rand() - 0.5) * planet.size * 0.85;
@@ -529,7 +529,7 @@ function buildPlanetScene(planetId) {
     const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
     const canopyMat = new THREE.MeshStandardMaterial({ color: 0x2a6a2a, roughness: 0.95 });
     const canopyMat2 = new THREE.MeshStandardMaterial({ color: 0x3a8f3a, roughness: 0.95 });
-    const treeCount = Math.round(70 * (planet.size / 300));
+    const treeCount = Math.round(100 * (planet.size / 300));
     for (let i = 0; i < treeCount; i++) {
       const x = (rand() - 0.5) * planet.size * 0.88;
       const z = (rand() - 0.5) * planet.size * 0.88;

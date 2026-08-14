@@ -130,6 +130,8 @@ const MISSIONS = {
     { id: 'p1m5', name: 'Cone Retrieval', desc: 'Retrieve the Nose Cone from the far dunes.', type: 'partpickup', part: 'noseCone', reward: { coins: 15 } },
     { id: 'p1m6', name: 'Raider Bounty', desc: 'Defeat 6 raiders total across Rustholm.', type: 'kill', target: 6, reward: { coins: 55 } },
     { id: 'p1m7', name: 'Deep Scrap Run', desc: 'Collect 10 scrap metal in total.', type: 'collect', item: 'scrap', target: 10, reward: { coins: 45, tools: 1 } },
+    { id: 'p1m8', name: 'Rustholm Cleanup', desc: 'Defeat 10 raiders total.', type: 'kill', target: 10, reward: { coins: 70 } },
+    { id: 'p1m9', name: 'Dune Scavenging', desc: 'Collect 16 scrap in total.', type: 'collect', item: 'scrap', target: 16, reward: { coins: 60, tools: 2 } },
   ],
   2: [
     { id: 'p2m1', name: 'Frost Raiders', desc: 'Defeat 5 raiders on the ice fields.', type: 'kill', target: 5, reward: { coins: 45 } },
@@ -139,6 +141,8 @@ const MISSIONS = {
     { id: 'p2m5', name: 'Fin Salvage', desc: 'Retrieve the Fins from the crash site.', type: 'partpickup', part: 'fins', reward: { coins: 20 } },
     { id: 'p2m6', name: 'Blizzard Bounty', desc: 'Defeat 9 raiders total on the ice fields.', type: 'kill', target: 9, reward: { coins: 65 } },
     { id: 'p2m7', name: 'Frozen Depths Scrap', desc: 'Collect 12 scrap in total.', type: 'collect', item: 'scrap', target: 12, reward: { coins: 55, tools: 1 } },
+    { id: 'p2m8', name: 'Glacier Cleanup', desc: 'Defeat 14 raiders total.', type: 'kill', target: 14, reward: { coins: 85 } },
+    { id: 'p2m9', name: 'Permafrost Scavenging', desc: 'Collect 18 scrap in total.', type: 'collect', item: 'scrap', target: 18, reward: { coins: 75, tools: 2 } },
   ],
   3: [
     { id: 'p3m1', name: 'Ember Raiders', desc: 'Defeat 8 raiders in the lava fields of Emberfall.', type: 'kill', target: 8, reward: { coins: 55 } },
@@ -148,6 +152,8 @@ const MISSIONS = {
     { id: 'p3m5', name: 'Fuel Tank Salvage', desc: 'Retrieve the Fuel Tank from the ash dunes.', type: 'partpickup', part: 'fuelTank', reward: { coins: 25 } },
     { id: 'p3m6', name: 'Cinder Bounty', desc: 'Defeat 14 raiders total in the lava fields.', type: 'kill', target: 14, reward: { coins: 75 } },
     { id: 'p3m7', name: 'Ash Flat Scrap Run', desc: 'Collect 16 scrap in total.', type: 'collect', item: 'scrap', target: 16, reward: { coins: 65, tools: 2 } },
+    { id: 'p3m8', name: 'Emberfall Cleanup', desc: 'Defeat 20 raiders total.', type: 'kill', target: 20, reward: { coins: 100 } },
+    { id: 'p3m9', name: 'Cinder Scavenging', desc: 'Collect 24 scrap in total.', type: 'collect', item: 'scrap', target: 24, reward: { coins: 90, tools: 3 } },
   ],
   4: [
     { id: 'p4m1', name: 'Jungle Ambush', desc: 'Defeat 9 raiders hiding in the Verdantia canopy.', type: 'kill', target: 9, reward: { coins: 65 } },
@@ -157,6 +163,8 @@ const MISSIONS = {
     { id: 'p4m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the ruined canopy platform.', type: 'partpickup', part: 'engine', reward: { coins: 30 } },
     { id: 'p4m6', name: 'Canopy Bounty', desc: 'Defeat 16 raiders total in the jungle.', type: 'kill', target: 16, reward: { coins: 85 } },
     { id: 'p4m7', name: 'Undergrowth Scrap Run', desc: 'Collect 18 scrap in total.', type: 'collect', item: 'scrap', target: 18, reward: { coins: 75, tools: 2 } },
+    { id: 'p4m8', name: 'Verdantia Cleanup', desc: 'Defeat 24 raiders total.', type: 'kill', target: 24, reward: { coins: 115 } },
+    { id: 'p4m9', name: 'Deep Canopy Scavenging', desc: 'Collect 27 scrap in total.', type: 'collect', item: 'scrap', target: 27, reward: { coins: 105, tools: 3 } },
   ],
   5: [
     { id: 'p5m1', name: 'Bog Raiders', desc: 'Defeat 10 raiders lurking in the Duskmoor mire.', type: 'kill', target: 10, reward: { coins: 75 } },
@@ -166,6 +174,8 @@ const MISSIONS = {
     { id: 'p5m5', name: 'Fuel Tank Salvage', desc: 'Retrieve the Fuel Tank from the sunken ruins.', type: 'partpickup', part: 'fuelTank', reward: { coins: 35 } },
     { id: 'p5m6', name: 'Mire Bounty', desc: 'Defeat 18 raiders total in the bog.', type: 'kill', target: 18, reward: { coins: 95 } },
     { id: 'p5m7', name: 'Wetland Scrap Run', desc: 'Collect 20 scrap in total.', type: 'collect', item: 'scrap', target: 20, reward: { coins: 85, tools: 2 } },
+    { id: 'p5m8', name: 'Duskmoor Cleanup', desc: 'Defeat 27 raiders total.', type: 'kill', target: 27, reward: { coins: 130 } },
+    { id: 'p5m9', name: 'Sunken Scavenging', desc: 'Collect 30 scrap in total.', type: 'collect', item: 'scrap', target: 30, reward: { coins: 120, tools: 3 } },
   ],
   6: [
     { id: 'p6m1', name: 'Canyon Raiders', desc: 'Defeat 11 raiders roaming the Ashcrag mesas.', type: 'kill', target: 11, reward: { coins: 85 } },
@@ -175,6 +185,8 @@ const MISSIONS = {
     { id: 'p6m5', name: 'Nose Cone Salvage', desc: 'Retrieve the Nose Cone from the cliffside wreck.', type: 'partpickup', part: 'noseCone', reward: { coins: 40 } },
     { id: 'p6m6', name: 'Mesa Bounty', desc: 'Defeat 20 raiders total across the canyon.', type: 'kill', target: 20, reward: { coins: 105 } },
     { id: 'p6m7', name: 'Badlands Scrap Run', desc: 'Collect 22 scrap in total.', type: 'collect', item: 'scrap', target: 22, reward: { coins: 95, tools: 3 } },
+    { id: 'p6m8', name: 'Ashcrag Cleanup', desc: 'Defeat 30 raiders total.', type: 'kill', target: 30, reward: { coins: 145 } },
+    { id: 'p6m9', name: 'Mesa Deep Scavenging', desc: 'Collect 33 scrap in total.', type: 'collect', item: 'scrap', target: 33, reward: { coins: 135, tools: 3 } },
   ],
   7: [
     { id: 'p7m1', name: 'Spire Sentinels', desc: 'Defeat 12 raiders guarding the Neonspire ruins.', type: 'kill', target: 12, reward: { coins: 95 } },
@@ -184,6 +196,8 @@ const MISSIONS = {
     { id: 'p7m5', name: 'Fin Salvage', desc: 'Retrieve the Fins from the shattered tower.', type: 'partpickup', part: 'fins', reward: { coins: 45 } },
     { id: 'p7m6', name: 'Spire Bounty', desc: 'Defeat 22 raiders total in the crystal ruins.', type: 'kill', target: 22, reward: { coins: 115 } },
     { id: 'p7m7', name: 'Shard Scrap Run', desc: 'Collect 24 glowing scrap shards in total.', type: 'collect', item: 'scrap', target: 24, reward: { coins: 105, tools: 3 } },
+    { id: 'p7m8', name: 'Neonspire Cleanup', desc: 'Defeat 33 raiders total.', type: 'kill', target: 33, reward: { coins: 160 } },
+    { id: 'p7m9', name: 'Deep Shard Scavenging', desc: 'Collect 36 glowing scrap shards in total.', type: 'collect', item: 'scrap', target: 36, reward: { coins: 150, tools: 4 } },
   ],
   8: [
     { id: 'p8m1', name: 'Storm Raiders', desc: 'Defeat 13 raiders braving the Stormreach highlands.', type: 'kill', target: 13, reward: { coins: 105 } },
@@ -193,6 +207,8 @@ const MISSIONS = {
     { id: 'p8m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the lightning-scarred ridge.', type: 'partpickup', part: 'engine', reward: { coins: 50 } },
     { id: 'p8m6', name: 'Highland Bounty', desc: 'Defeat 24 raiders total on the highlands.', type: 'kill', target: 24, reward: { coins: 125 } },
     { id: 'p8m7', name: 'Storm-Scattered Scrap Run', desc: 'Collect 26 scrap in total.', type: 'collect', item: 'scrap', target: 26, reward: { coins: 115, tools: 3 } },
+    { id: 'p8m8', name: 'Stormreach Cleanup', desc: 'Defeat 36 raiders total.', type: 'kill', target: 36, reward: { coins: 175 } },
+    { id: 'p8m9', name: 'Highland Deep Scavenging', desc: 'Collect 39 scrap in total.', type: 'collect', item: 'scrap', target: 39, reward: { coins: 165, tools: 4 } },
   ],
   9: [
     { id: 'p9m1', name: 'Lunar Raiders', desc: 'Defeat 15 raiders roaming the lunar craters.', type: 'kill', target: 15, reward: { coins: 115 } },
@@ -202,6 +218,8 @@ const MISSIONS = {
     { id: 'p9m5', name: 'Fin Salvage', desc: 'Retrieve the Fins from a crashed lander.', type: 'partpickup', part: 'fins', reward: { coins: 55 } },
     { id: 'p9m6', name: 'Crater Bounty', desc: 'Defeat 26 raiders total in the craters.', type: 'kill', target: 26, reward: { coins: 135 } },
     { id: 'p9m7', name: 'Regolith Deep Scrap Run', desc: 'Collect 28 scrap in total.', type: 'collect', item: 'scrap', target: 28, reward: { coins: 125, tools: 4 } },
+    { id: 'p9m8', name: 'Lunaris Cleanup', desc: 'Defeat 39 raiders total.', type: 'kill', target: 39, reward: { coins: 190 } },
+    { id: 'p9m9', name: 'Crater Deep Scavenging', desc: 'Collect 42 scrap in total.', type: 'collect', item: 'scrap', target: 42, reward: { coins: 180, tools: 4 } },
   ],
   10: [
     { id: 'p10m1', name: 'Reef Raiders', desc: 'Defeat 16 raiders lurking among the coral spires.', type: 'kill', target: 16, reward: { coins: 125 } },
@@ -211,6 +229,8 @@ const MISSIONS = {
     { id: 'p10m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the sunken wreck.', type: 'partpickup', part: 'engine', reward: { coins: 60 } },
     { id: 'p10m6', name: 'Reef Bounty', desc: 'Defeat 28 raiders total among the coral.', type: 'kill', target: 28, reward: { coins: 145 } },
     { id: 'p10m7', name: 'Deep Coral Scrap Run', desc: 'Collect 30 scrap in total.', type: 'collect', item: 'scrap', target: 30, reward: { coins: 135, tools: 4 } },
+    { id: 'p10m8', name: 'Coralis Cleanup', desc: 'Defeat 42 raiders total.', type: 'kill', target: 42, reward: { coins: 205 } },
+    { id: 'p10m9', name: 'Abyssal Scavenging', desc: 'Collect 45 scrap in total.', type: 'collect', item: 'scrap', target: 45, reward: { coins: 195, tools: 5 } },
   ],
   11: [
     { id: 'p11m1', name: 'Ash Raiders', desc: 'Defeat 17 raiders in the Cindergate ruins.', type: 'kill', target: 17, reward: { coins: 135 } },
@@ -220,6 +240,8 @@ const MISSIONS = {
     { id: 'p11m5', name: 'Engine Salvage', desc: 'Retrieve the Engine from the buried ruins.', type: 'partpickup', part: 'engine', reward: { coins: 65 } },
     { id: 'p11m6', name: 'Ashland Bounty', desc: 'Defeat 30 raiders total in Cindergate.', type: 'kill', target: 30, reward: { coins: 155 } },
     { id: 'p11m7', name: 'Cinder Drift Scrap Run', desc: 'Collect 32 scrap in total.', type: 'collect', item: 'scrap', target: 32, reward: { coins: 145, tools: 4 } },
+    { id: 'p11m8', name: 'Cindergate Cleanup', desc: 'Defeat 45 raiders total.', type: 'kill', target: 45, reward: { coins: 220 } },
+    { id: 'p11m9', name: 'Ashfall Scavenging', desc: 'Collect 48 scrap in total.', type: 'collect', item: 'scrap', target: 48, reward: { coins: 210, tools: 5 } },
   ],
   12: [
     { id: 'p12m1', name: 'Crimson Raiders', desc: 'Defeat 18 raiders roaming Bloodmere.', type: 'kill', target: 18, reward: { coins: 145 } },
@@ -229,6 +251,8 @@ const MISSIONS = {
     { id: 'p12m5', name: 'Nose Cone Salvage', desc: 'Retrieve the Nose Cone from the sunken ruins.', type: 'partpickup', part: 'noseCone', reward: { coins: 70 } },
     { id: 'p12m6', name: 'Crimson Bounty', desc: 'Defeat 32 raiders total on Bloodmere.', type: 'kill', target: 32, reward: { coins: 165 } },
     { id: 'p12m7', name: 'Bloodstone Deep Scrap Run', desc: 'Collect 34 scrap in total.', type: 'collect', item: 'scrap', target: 34, reward: { coins: 155, tools: 5 } },
+    { id: 'p12m8', name: 'Bloodmere Cleanup', desc: 'Defeat 48 raiders total.', type: 'kill', target: 48, reward: { coins: 235 } },
+    { id: 'p12m9', name: 'Crimson Deep Scavenging', desc: 'Collect 51 scrap in total.', type: 'collect', item: 'scrap', target: 51, reward: { coins: 225, tools: 5 } },
   ],
   13: [
     { id: 'p13m1', name: 'Toxic Raiders', desc: 'Defeat 19 mutated raiders on Toxara.', type: 'kill', target: 19, reward: { coins: 155 } },
@@ -238,6 +262,8 @@ const MISSIONS = {
     { id: 'p13m5', name: 'Fin Salvage', desc: 'Retrieve the Fins from the irradiated wreck.', type: 'partpickup', part: 'fins', reward: { coins: 75 } },
     { id: 'p13m6', name: 'Toxic Bounty', desc: 'Defeat 34 mutated raiders total on Toxara.', type: 'kill', target: 34, reward: { coins: 175 } },
     { id: 'p13m7', name: 'Glowing Marsh Scrap Run', desc: 'Collect 36 scrap in total.', type: 'collect', item: 'scrap', target: 36, reward: { coins: 165, tools: 5 } },
+    { id: 'p13m8', name: 'Toxara Cleanup', desc: 'Defeat 51 mutated raiders total.', type: 'kill', target: 51, reward: { coins: 250 } },
+    { id: 'p13m9', name: 'Irradiated Deep Scavenging', desc: 'Collect 54 scrap in total.', type: 'collect', item: 'scrap', target: 54, reward: { coins: 240, tools: 6 } },
   ],
   14: [
     { id: 'p14m1', name: 'Xenar Defense', desc: 'Defeat 23 alien raiders.', type: 'kill', target: 23, reward: { coins: 170 } },
@@ -248,6 +274,8 @@ const MISSIONS = {
     { id: 'p14m6', name: 'The Lost Rocket', desc: 'Find the ancient lost rocket ship deep on Xenar Prime.', type: 'lostrocket', reward: { coins: 250 } },
     { id: 'p14m7', name: 'Xenar Final Bounty', desc: 'Defeat 40 alien raiders total.', type: 'kill', target: 40, reward: { coins: 200 } },
     { id: 'p14m8', name: 'Last Crystal Scrap Run', desc: 'Collect 42 scrap crystals in total.', type: 'collect', item: 'scrap', target: 42, reward: { coins: 190, tools: 5 } },
+    { id: 'p14m9', name: 'Xenar Prime Cleanup', desc: 'Defeat 58 alien raiders total.', type: 'kill', target: 58, reward: { coins: 280 } },
+    { id: 'p14m10', name: 'Final Deep Scavenging', desc: 'Collect 60 scrap crystals in total.', type: 'collect', item: 'scrap', target: 60, reward: { coins: 270, tools: 6 } },
   ],
 };
 
