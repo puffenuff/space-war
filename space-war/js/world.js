@@ -456,6 +456,24 @@ function buildPlanetScene(planetId) {
   const terrain = buildTerrain(planet, groundHeightFn);
   scene.add(terrain);
 
+  // ---- extended ground beyond the real terrain edge, so the invisible boundary wall
+  // (see game.js clampToWorldBoundary) never lets the player see the world just stop - a
+  // single big flat plane sits at roughly the terrain's own edge height (sampled around the
+  // boundary and averaged, with a small positive bias so it overlaps rather than gaps) and
+  // stretches out past the fog's draw distance in every direction ----
+  let edgeHeightSum = 0;
+  const edgeSampleCount = 16;
+  for (let i = 0; i < edgeSampleCount; i++) {
+    const ang = (i / edgeSampleCount) * Math.PI * 2;
+    edgeHeightSum += groundHeightFn(Math.cos(ang) * (planet.size / 2 - 2), Math.sin(ang) * (planet.size / 2 - 2));
+  }
+  const skirt = new THREE.Mesh(
+    new THREE.PlaneGeometry(planet.size * 5, planet.size * 5, 1, 1).rotateX(-Math.PI / 2),
+    new THREE.MeshStandardMaterial({ color: planet.ground2, roughness: 1 })
+  );
+  skirt.position.y = (edgeHeightSum / edgeSampleCount) + 1.5;
+  scene.add(skirt);
+
   // ---- signature landmark ----
   const landmark = buildLandmark(planet, groundHeightFn, rand);
   scene.add(landmark);

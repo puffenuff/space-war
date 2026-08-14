@@ -67,6 +67,23 @@ function getGroundHeightCurrent(x, z) {
 }
 player.getGroundHeight = (x, z) => getGroundHeightCurrent(x, z);
 
+// invisible boundary wall: keeps the player/vehicle inside the detailed terrain square
+// (well short of its actual edge) on planet surfaces, so the world never visibly runs out
+let lastBoundaryToast = -999;
+function clampToWorldBoundary(pos) {
+  if (mode !== 'planet' || inCave) return;
+  const limit = activeBuild.planet.size / 2 - 20;
+  const hitX = Math.abs(pos.x) > limit;
+  const hitZ = Math.abs(pos.z) > limit;
+  if (!hitX && !hitZ) return;
+  pos.x = Math.max(-limit, Math.min(limit, pos.x));
+  pos.z = Math.max(-limit, Math.min(limit, pos.z));
+  if (elapsed - lastBoundaryToast > 4) {
+    lastBoundaryToast = elapsed;
+    ui.showToast("This is as far as the terrain goes...");
+  }
+}
+
 // ===================== FIRE HANDLING =====================
 player.onFire = (origin, dir) => {
   if (mode !== 'planet') return;
@@ -1073,6 +1090,7 @@ function tick() {
   // base / planet / cave
   if (drivingVehicle) {
     vehicleCtl.update(dt);
+    clampToWorldBoundary(drivingVehicle.position);
     updateThirdPersonCamera(camera, drivingVehicle.position, dt, 10, 2.2);
     if (input.interactPressed) {
       exitVehicleIfAny();
@@ -1080,6 +1098,7 @@ function tick() {
     }
   } else {
     player.update(dt, speedMultiplier());
+    clampToWorldBoundary(player.mesh.position);
     updateThirdPersonCamera(camera, player.mesh.position, dt);
   }
 
