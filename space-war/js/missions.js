@@ -76,10 +76,29 @@ function completeMissionByType(planetId, type, toast) {
   return completeMission(planetId, def.id, toast);
 }
 
+// atmosphere missions need two things done before they complete: the blueprint microchip
+// found in that planet's crashed shuttle, and enough ore banked (which gets spent on
+// completion) - call this whenever either one changes
+function checkAtmosphereMission(planetId, toast) {
+  ensurePlanetMissions(planetId);
+  const def = MISSIONS[planetId].find((m) => m.type === 'atmosphere');
+  if (!def) return;
+  const prog = state.planets[planetId].missions[def.id];
+  if (prog.done) return;
+  if (!state.planets[planetId].blueprintFound) return;
+  if (state.inventory.ore < def.oreTarget) return;
+  state.inventory.ore -= def.oreTarget;
+  completeMission(planetId, def.id, toast);
+}
+
 function missionProgressLabel(planetId, def) {
   const prog = state.planets[planetId].missions[def.id];
   if (prog.done) return 'Done';
   if (def.type === 'kill' || def.type === 'collect') return `${prog.progress || 0}/${def.target}`;
+  if (def.type === 'atmosphere') {
+    const chipStatus = state.planets[planetId].blueprintFound ? 'chip found' : 'chip missing';
+    return `${Math.min(state.inventory.ore, def.oreTarget)}/${def.oreTarget} ore, ${chipStatus}`;
+  }
   return 'In progress';
 }
 

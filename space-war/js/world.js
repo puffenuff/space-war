@@ -642,6 +642,67 @@ function buildPlanetScene(planetId) {
     digSites.push(mound);
   }
 
+  // ---- broken shuttle wreck: crashed somewhere out on the surface, holds a blueprint
+  // microchip needed (along with enough ore) to make this world's atmosphere inhabitable ----
+  let shuttleX, shuttleZ;
+  do {
+    shuttleX = (rand() - 0.5) * planet.size * 0.75;
+    shuttleZ = (rand() - 0.5) * planet.size * 0.75;
+  } while (Math.hypot(shuttleX, shuttleZ) < 30 || Math.hypot(shuttleX - mineX, shuttleZ - mineZ) < 30);
+  const shuttleGroup = new THREE.Group();
+  const shuttleHullMat = new THREE.MeshStandardMaterial({ color: 0x8a8f9a, metalness: 0.5, roughness: 0.6 });
+  const shuttleDarkMat = new THREE.MeshStandardMaterial({ color: 0x201d1a, roughness: 0.9 });
+  const shuttleHull = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.4, 7, 10), shuttleHullMat);
+  shuttleHull.rotation.z = Math.PI / 2 + 0.25;
+  shuttleHull.position.y = 1.2;
+  shuttleHull.castShadow = true;
+  shuttleGroup.add(shuttleHull);
+  const shuttleGap = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.3, 1.3), shuttleDarkMat);
+  shuttleGap.position.set(-1.0, 1.4, 0.2);
+  shuttleGroup.add(shuttleGap);
+  const shuttleCockpit = new THREE.Mesh(new THREE.SphereGeometry(0.9, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.55), new THREE.MeshStandardMaterial({ color: 0x1a2a33, metalness: 0.4, roughness: 0.3 }));
+  shuttleCockpit.position.set(3.0, 1.5, 0);
+  shuttleCockpit.rotation.z = Math.PI / 2;
+  shuttleGroup.add(shuttleCockpit);
+  const shuttleWing = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.15, 1.3), shuttleHullMat);
+  shuttleWing.position.set(0.6, 0.4, 1.6);
+  shuttleWing.rotation.z = 0.5; shuttleWing.rotation.y = 0.3;
+  shuttleGroup.add(shuttleWing);
+  const scorchMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 1 });
+  for (let i = 0; i < 4; i++) {
+    const scorch = new THREE.Mesh(new THREE.CircleGeometry(0.6 + rand() * 0.5, 8), scorchMat);
+    scorch.rotation.x = -Math.PI / 2;
+    scorch.position.set((rand() - 0.5) * 3, 0.02, (rand() - 0.5) * 2);
+    shuttleGroup.add(scorch);
+  }
+  const chipGlow = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.18), new THREE.MeshStandardMaterial({ color: 0x6fffea, emissive: 0x6fffea, emissiveIntensity: 0.8 }));
+  chipGlow.position.set(-1.0, 0.9, 0.2);
+  shuttleGroup.add(chipGlow);
+  shuttleGroup.position.set(shuttleX, groundHeightFn(shuttleX, shuttleZ), shuttleZ);
+  shuttleGroup.rotation.y = rand() * Math.PI * 2;
+  shuttleGroup.userData = { type: 'shuttleWreck', searched: false, chipGlow };
+  scene.add(shuttleGroup);
+
+  // ---- ore chests: some out in the open, more tucked in the "special area" cave below ----
+  const oreChestMat = new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.6, roughness: 0.4, emissive: 0x5a3010, emissiveIntensity: 0.25 });
+  const oreChestGeo = new THREE.BoxGeometry(1.0, 0.75, 0.8);
+  const oreChests = [];
+  const oreChestCount = 3;
+  for (let i = 0; i < oreChestCount; i++) {
+    let ox, oz;
+    do {
+      ox = (rand() - 0.5) * planet.size * 0.8;
+      oz = (rand() - 0.5) * planet.size * 0.8;
+    } while (Math.hypot(ox, oz) < 20 || Math.hypot(ox - mineX, oz - mineZ) < 20 || Math.hypot(ox - shuttleX, oz - shuttleZ) < 15);
+    const chest = new THREE.Mesh(oreChestGeo, oreChestMat);
+    chest.position.set(ox, groundHeightFn(ox, oz) + 0.02, oz);
+    chest.rotation.y = rand() * Math.PI;
+    chest.castShadow = true;
+    chest.userData = { type: 'oreChest', collected: false, amount: 5 + Math.floor(rand() * 4) };
+    scene.add(chest);
+    oreChests.push(chest);
+  }
+
   // ---- permanent mineshaft entrance, bored into the hillside found above (walk in/out any time) ----
   const mineEntrance = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3d24, roughness: 1 });
@@ -1058,6 +1119,27 @@ function buildPlanetScene(planetId) {
   caveGroup.add(chest2);
   const caveTreasures = [chest, chest2];
 
+  // ore chests tucked in the cave - the "special area" ore, worth more per chest than the
+  // ones scattered on the surface since they take real effort (a whole cave) to reach
+  const caveOreChests = [];
+  const caveOreChestCount = 2;
+  for (let i = 0; i < caveOreChestCount; i++) {
+    let cox, coz, tries = 0;
+    do {
+      const a = caveRand() * Math.PI * 2;
+      const r = 10 + caveRand() * (caveRadius - 18);
+      cox = Math.cos(a) * r; coz = Math.sin(a) * r;
+      tries++;
+    } while (inSecretTrailZone(cox, coz) && tries < 6);
+    if (inSecretTrailZone(cox, coz)) continue;
+    const oreChest = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 0.8), new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.6, roughness: 0.4, emissive: 0x5a3010, emissiveIntensity: 0.25 }));
+    oreChest.position.set(cox, -0.1, coz);
+    oreChest.rotation.y = caveRand() * Math.PI;
+    oreChest.userData = { type: 'oreChest', collected: false, amount: 9 + Math.floor(caveRand() * 5), worldPos: caveOrigin.clone().add(oreChest.position) };
+    caveGroup.add(oreChest);
+    caveOreChests.push(oreChest);
+  }
+
   // special suit pickup, unique per planet, permanently reskins the astronaut
   const outfitColor = planet.outfitColor || 0xffffff;
   const outfit = new THREE.Group();
@@ -1336,6 +1418,7 @@ function buildPlanetScene(planetId) {
     beacon, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
     caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
     caveScrapPickups, caveCoinPickups,
+    shuttleWreck: shuttleGroup, oreChests, caveOreChests,
     wreckPos: [planet.wreckPos[0], wreckY, planet.wreckPos[2]],
     lostRocket,
     lostRocketSurface: planet.lostRocketPos ? { x: planet.lostRocketPos[0], z: planet.lostRocketPos[2] } : null,
@@ -1384,6 +1467,9 @@ function buildPlanetScene(planetId) {
       caveScrapPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.y = t * 2 + m.userData.spin; } });
       caveCoinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
+      if (!shuttleGroup.userData.searched) { chipGlow.material.emissiveIntensity = 0.5 + Math.sin(t * 4) * 0.4; }
+      oreChests.forEach((c) => { if (!c.userData.collected) c.material.emissiveIntensity = 0.2 + Math.sin(t * 2.5) * 0.15; });
+      caveOreChests.forEach((c) => { if (!c.userData.collected) c.material.emissiveIntensity = 0.2 + Math.sin(t * 2.5) * 0.15; });
       if (outfit && !outfit.userData.collected) {
         outfit.rotation.y = t * 0.8;
         outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15;

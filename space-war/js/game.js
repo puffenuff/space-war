@@ -291,6 +291,17 @@ function collectiblesTick(dt) {
       completeMissionByType(currentPlanetId, 'partpickup', missionToast);
       ui.showToast(`${labelForPart(b.partPickup.userData.part)} acquired!`);
     }
+    (b.oreChests || []).forEach((c) => {
+      if (c.userData.collected) return;
+      if (pPos.distanceTo(c.position) < 1.8) {
+        c.userData.collected = true;
+        c.visible = false;
+        state.inventory.ore += c.userData.amount;
+        sfx.scrap();
+        ui.showToast(`+${c.userData.amount} Ore`);
+        checkAtmosphereMission(currentPlanetId, missionToast);
+      }
+    });
   } else {
     (b.caveScrapPickups || []).forEach((m) => {
       if (m.userData.collected) return;
@@ -324,6 +335,17 @@ function collectiblesTick(dt) {
         ui.showToast(`Cave Treasure! +${coinGain} Coins, +1 Tool`);
       }
     });
+    (b.caveOreChests || []).forEach((c) => {
+      if (c.userData.collected) return;
+      if (pPos.distanceTo(c.userData.worldPos) < 1.8) {
+        c.userData.collected = true;
+        c.visible = false;
+        state.inventory.ore += c.userData.amount;
+        sfx.scrap();
+        ui.showToast(`+${c.userData.amount} Ore (special find!)`);
+        checkAtmosphereMission(currentPlanetId, missionToast);
+      }
+    });
     if (b.outfit && !b.outfit.userData.collected && pPos.distanceTo(b.outfit.userData.worldPos) < 2.0) {
       b.outfit.userData.collected = true;
       const hex = b.outfit.userData.suitColor;
@@ -351,6 +373,7 @@ function findNearestInteractable() {
       b.digSites.forEach((d) => { if (!d.userData.dug) list.push(d); });
       if (b.lostRocket) list.push(b.lostRocket);
       list.push(b.mineEntrance);
+      if (!b.shuttleWreck.userData.searched) list.push(b.shuttleWreck);
     } else {
       const exitWorld = new THREE.Object3D();
       exitWorld.position.set(b.caveOrigin.x + b.caveExit.position.x, b.caveOrigin.y, b.caveOrigin.z + b.caveExit.position.z);
@@ -395,6 +418,7 @@ function promptLabelFor(obj) {
     if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
     if (d.type === 'mineEntrance') return 'Enter Mineshaft';
     if (d.type === 'caveExit') return 'Exit Mineshaft';
+    if (d.type === 'shuttleWreck') return 'Search the Crashed Shuttle';
   }
   return 'Interact';
 }
@@ -416,7 +440,18 @@ function handleInteractTap(obj) {
     if (d.type === 'lostRocket') { exploreLostRocket(); return; }
     if (d.type === 'mineEntrance') { enterCave(obj); return; }
     if (d.type === 'caveExit') { exitCave(); return; }
+    if (d.type === 'shuttleWreck') { searchShuttleWreck(obj); return; }
   }
+}
+
+function searchShuttleWreck(shuttle) {
+  shuttle.userData.searched = true;
+  shuttle.userData.chipGlow.visible = false;
+  state.planets[currentPlanetId].blueprintFound = true;
+  sfx.partFound();
+  ui.showToast('Blueprint microchip recovered!');
+  checkAtmosphereMission(currentPlanetId, missionToast);
+  saveGame();
 }
 
 function missionToast(text) { ui.showToast(text); sfx.missionComplete(); }
@@ -1132,6 +1167,7 @@ function tick() {
 
   ui.updateCoins(state.coins);
   ui.updateParts(rocketPartsCount());
+  ui.updateOre(state.inventory.ore);
   ui.updateHealth(state.health, state.maxHealth);
   const showCombatHud = mode === 'planet' && !drivingVehicle && !ui.isPanelOpen();
   ui.showCrosshair(showCombatHud);

@@ -4,14 +4,14 @@ const SAVE_KEY = 'spacewar_save_v1';
 function freshState() {
   const planets = {};
   PLANET_ID_LIST.forEach((id) => {
-    planets[id] = { unlocked: id === 1, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false, secretRoomDone: false };
+    planets[id] = { unlocked: id === 1, completed: false, missions: {}, found: {}, dug: {}, kills: 0, vehicleRepaired: false, lostRocketFound: false, secretRoomDone: false, blueprintFound: false };
   });
   return {
     playerName: 'Billy Bob',
     coins: 40,
     health: 100,
     maxHealth: 100,
-    inventory: { scrap: 0, tools: 0, food: 0 },
+    inventory: { scrap: 0, tools: 0, food: 0, ore: 0 },
     upgrades: { speed: 0, jump: 0, damage: 0, hull: 0 }, // each level 0-3
     rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false, heatShield: false, guidanceCore: false },
     planets,
@@ -43,11 +43,20 @@ function loadGame() {
     const parsed = JSON.parse(raw);
     const fresh = freshState();
     Object.assign(state, fresh, parsed);
-    // deep-merge planets so an older save (fewer worlds) doesn't wipe out newly added planets
-    state.planets = Object.assign({}, fresh.planets, parsed.planets || {});
-    // same deal for rocketParts - an older save with fewer part types would otherwise wipe out
-    // newly added ones (they'd end up undefined instead of false)
+    // deep-merge planets so an older save (fewer worlds, or missing fields added to the
+    // per-planet schema since the save was made) doesn't wipe out newly added planets/fields -
+    // merge each planet's own fields too, not just which planet IDs exist
+    state.planets = {};
+    PLANET_ID_LIST.forEach((id) => {
+      state.planets[id] = Object.assign({}, fresh.planets[id], (parsed.planets && parsed.planets[id]) || {});
+    });
+    // same deal for every other nested object in state - Object.assign only merges at the top
+    // level, so a save missing a field added to one of these later (e.g. inventory.ore) would
+    // otherwise end up undefined instead of picking up the fresh default
     state.rocketParts = Object.assign({}, fresh.rocketParts, parsed.rocketParts || {});
+    state.inventory = Object.assign({}, fresh.inventory, parsed.inventory || {});
+    state.upgrades = Object.assign({}, fresh.upgrades, parsed.upgrades || {});
+    state.weaponsOwned = Object.assign({}, fresh.weaponsOwned, parsed.weaponsOwned || {});
     return true;
   } catch (e) {
     return false;
