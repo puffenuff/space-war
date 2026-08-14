@@ -299,19 +299,8 @@ function collectiblesTick(dt) {
       completeMissionByType(currentPlanetId, 'partpickup', missionToast);
       ui.showToast(`${labelForPart(b.partPickup.userData.part)} acquired!`);
     }
-    (b.oreChests || []).forEach((c, i) => {
-      if (c.userData.collected) return;
-      if (pPos.distanceTo(c.position) < 1.8) {
-        c.userData.collected = true;
-        c.visible = false;
-        const matDef = MATERIAL_BY_KEY[c.userData.material];
-        state.inventory.materials[c.userData.material] += c.userData.amount;
-        sfx.scrap();
-        ui.showToast(`+${c.userData.amount} ${matDef.name}`);
-        checkAtmosphereMission(currentPlanetId, missionToast);
-        broadcastLoot('ore', i);
-      }
-    });
+    // material chests are mined via hold-to-interact (handleHold/completeMineChest), not
+    // picked up by walking over them - see findNearestInteractable
   } else {
     (b.caveScrapPickups || []).forEach((m, i) => {
       if (m.userData.collected) return;
@@ -348,19 +337,7 @@ function collectiblesTick(dt) {
         broadcastLoot('treasure', i);
       }
     });
-    (b.caveOreChests || []).forEach((c, i) => {
-      if (c.userData.collected) return;
-      if (pPos.distanceTo(c.userData.worldPos) < 1.8) {
-        c.userData.collected = true;
-        c.visible = false;
-        const matDef = MATERIAL_BY_KEY[c.userData.material];
-        state.inventory.materials[c.userData.material] += c.userData.amount;
-        sfx.scrap();
-        ui.showToast(`+${c.userData.amount} ${matDef.name} (special find!)`);
-        checkAtmosphereMission(currentPlanetId, missionToast);
-        broadcastLoot('caveOre', i);
-      }
-    });
+    // cave material chests are mined the same way as surface ones - see completeMineChest
     if (b.outfit && !b.outfit.userData.collected && pPos.distanceTo(b.outfit.userData.worldPos) < 2.0) {
       b.outfit.userData.collected = true;
       const hex = b.outfit.userData.suitColor;
@@ -436,6 +413,7 @@ function findNearestInteractable() {
       list.push(b.beacon);
       if (!b.vehicle.userData.repaired || !drivingVehicle) list.push(b.vehicle);
       b.digSites.forEach((d) => { if (!d.userData.dug) list.push(d); });
+      (b.oreChests || []).forEach((c) => { if (!c.userData.collected) list.push(c); });
       if (b.lostRocket) list.push(b.lostRocket);
       list.push(b.mineEntrance);
       if (!b.shuttleWreck.userData.searched) list.push(b.shuttleWreck);
@@ -444,14 +422,13 @@ function findNearestInteractable() {
       exitWorld.position.set(b.caveOrigin.x + b.caveExit.position.x, b.caveOrigin.y, b.caveOrigin.z + b.caveExit.position.z);
       exitWorld.userData = { type: 'caveExit' };
       list.push(exitWorld);
+      (b.caveOreChests || []).forEach((c) => { if (!c.userData.collected) list.push(c); });
     }
-    return nearestOf(list, (o) => (o === b.beacon || o === b.vehicle || o === b.lostRocket || b.digSites.includes(o)) ? worldPosOf(o, b) : o.position, list.map(() => (list.includes(b.lostRocket) ? 5 : 3)));
+    // objects nested inside the cave group (worldPos set) need their absolute position, not
+    // the local-to-cave-group one; everything else's .position is already scene-absolute
+    return nearestOf(list, (o) => (o.userData && o.userData.worldPos) ? o.userData.worldPos : o.position, list.map(() => (list.includes(b.lostRocket) ? 5 : 3)));
   }
   return null;
-}
-
-function worldPosOf(obj, build) {
-  return obj.position;
 }
 
 function nearestOf(list, posFn, ranges) {
@@ -480,6 +457,7 @@ function promptLabelFor(obj) {
     if (d.type === 'returnBeacon') return 'Return to Base';
     if (d.type === 'vehicle') return d.repaired ? 'Enter Rover' : `Hold to Repair (needs 2 Tools, have ${state.inventory.tools})`;
     if (d.type === 'digSite') return 'Hold to Dig';
+    if (d.type === 'oreChest') return `Hold to Mine (${MATERIAL_BY_KEY[d.material].name})`;
     if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
     if (d.type === 'mineEntrance') return 'Enter Mineshaft';
     if (d.type === 'caveExit') return 'Exit Mineshaft';
@@ -808,6 +786,22 @@ function handleHold(obj, dt) {
     }
     return true;
   }
+  if (d.type === 'oreChest') {
+    digTarget = obj;
+    if (input.interactHeld) {
+      digProgress = Math.min(1, digProgress + dt / 1.8);
+      player.digging = true;
+      ui.showDigProgress(digProgress);
+      const step = Math.floor(digProgress * 6);
+      if (step !== lastDigTickStep) { lastDigTickStep = step; sfx.dig(); }
+      if (digProgress >= 1) completeMineChest(obj);
+    } else {
+      digProgress = Math.max(0, digProgress - dt * 2);
+      lastDigTickStep = -1;
+      if (digProgress <= 0) { player.digging = false; ui.hideDigProgress(); }
+    }
+    return true;
+  }
   if (d.type === 'vehicle' && !d.repaired) {
     if (input.interactHeld) {
       if (state.inventory.tools < 2) { ui.showToast('Need 2 Repair Tools!'); sfx.denied(); repairHoldProgress = 0; return true; }
@@ -845,6 +839,23 @@ function completeDig(site) {
     sfx.coin();
   }
   saveGame();
+}
+
+function completeMineChest(chest) {
+  chest.userData.collected = true;
+  chest.visible = false;
+  digProgress = 0; player.digging = false; ui.hideDigProgress();
+  const matDef = MATERIAL_BY_KEY[chest.userData.material];
+  state.inventory.materials[chest.userData.material] += chest.userData.amount;
+  sfx.scrap();
+  ui.showToast(`+${chest.userData.amount} ${matDef.name}`);
+  checkAtmosphereMission(currentPlanetId, missionToast);
+  saveGame();
+  const b = activeBuild;
+  const isSurface = (b.oreChests || []).includes(chest);
+  const kind = isSurface ? 'ore' : 'caveOre';
+  const idx = (isSurface ? b.oreChests : b.caveOreChests).indexOf(chest);
+  broadcastLoot(kind, idx);
 }
 
 function completeRepair(vehicleMesh) {
