@@ -451,8 +451,15 @@ function buildPlanetScene(planetId) {
   // ---- find a steep hillside for the mineshaft first (using the raw, unflattened height),
   // so the terrain built below can be shaped around it instead of the entrance getting
   // placed on top of a slope and swallowed by it ----
+  // the noise frequency was tuned on the original 600-unit maps, where the terrain mesh's
+  // segment cap (see buildTerrain) gave ~4-unit cells - fine enough to render every wiggle
+  // accurately. On the current 4000-unit maps that same segment cap gives ~18-unit cells, so
+  // without this the rendered hill and the exact analytic collision height drift apart and
+  // the player visually sinks into / falls through hillsides. Scaling frequency down with
+  // planet.size keeps the wavelength-to-cell-size ratio (and collision accuracy) the same.
+  const terrainFreqScale = Math.min(1, 600 / planet.size);
   function rawHeightFn(x, z) {
-    return terrainHeight(x, z, seed, 7 + planet.hills * 0.4);
+    return terrainHeight(x, z, seed, 7 + planet.hills * 0.4, terrainFreqScale);
   }
   let mineX = 0, mineZ = 0, mineY = -Infinity, mineFacing = 0, bestScore = -Infinity;
   for (let attempt = 0; attempt < 24; attempt++) {

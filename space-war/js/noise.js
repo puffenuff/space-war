@@ -29,9 +29,12 @@ function fbm(x, y, seed = 0, octaves = 4) {
   return total / maxAmp;
 }
 
-// terrain height function shared by generation + collision
-function terrainHeight(x, z, seed, hillScale = 9) {
-  const n = fbm(x * 0.02, z * 0.02, seed, 4);
+// terrain height function shared by generation + collision. freqScale lets callers shrink the
+// noise frequency (stretch the wavelength) on bigger maps, so the coarse, performance-capped
+// terrain mesh can still faithfully represent it - otherwise the rendered ground and the exact
+// analytic height used for player/vehicle collision drift apart on hills and you sink/clip through
+function terrainHeight(x, z, seed, hillScale = 9, freqScale = 1) {
+  const n = fbm(x * 0.02 * freqScale, z * 0.02 * freqScale, seed, 4);
   let h = (n - 0.5) * 2 * hillScale;
   // gentle bowl near center (base landing zone) flattened
   const distFromCenter = Math.hypot(x, z);
