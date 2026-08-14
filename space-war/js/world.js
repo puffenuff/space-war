@@ -723,22 +723,85 @@ function buildPlanetScene(planetId) {
   shuttleGroup.userData = { type: 'shuttleWreck', searched: false, chipGlow };
   scene.add(shuttleGroup);
 
-  // ---- ore chests: some out in the open, more tucked in the "special area" cave below ----
-  const oreChestMat = new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.6, roughness: 0.4, emissive: 0x5a3010, emissiveIntensity: 0.25 });
+  // ---- smaller derelict ship wrecks scattered around - purely atmospheric dressing (no loot
+  // of their own, the main shuttle above is the one with the blueprint chip) so the surface
+  // reads like a graveyard of failed landings without turning into another chest to manage ----
+  const wreckHullMat = new THREE.MeshStandardMaterial({ color: 0x6a6f78, metalness: 0.55, roughness: 0.65 });
+  const wreckScorchMat = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 1 });
+  function buildDerelictWreck(rand) {
+    const g = new THREE.Group();
+    const hullLen = 2.2 + rand() * 2.4;
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.5 + rand() * 0.3, 0.7 + rand() * 0.3, hullLen, 8), wreckHullMat);
+    hull.rotation.z = Math.PI / 2 + (rand() - 0.5) * 0.6;
+    hull.rotation.x = (rand() - 0.5) * 0.4;
+    hull.position.y = 0.5;
+    hull.castShadow = true;
+    g.add(hull);
+    if (rand() < 0.7) {
+      const finGeo = new THREE.BoxGeometry(1.4 + rand(), 0.1, 0.7);
+      const fin = new THREE.Mesh(finGeo, wreckHullMat);
+      fin.position.set((rand() - 0.5) * hullLen * 0.6, 0.5, 0);
+      fin.rotation.z = 0.6 + rand() * 0.5;
+      g.add(fin);
+    }
+    const scorchCount = 2 + Math.floor(rand() * 3);
+    for (let s = 0; s < scorchCount; s++) {
+      const scorch = new THREE.Mesh(new THREE.CircleGeometry(0.4 + rand() * 0.4, 7), wreckScorchMat);
+      scorch.rotation.x = -Math.PI / 2;
+      scorch.position.set((rand() - 0.5) * hullLen, 0.02, (rand() - 0.5) * 1.6);
+      g.add(scorch);
+    }
+    return g;
+  }
+  const wreckDebrisCount = 5;
+  for (let i = 0; i < wreckDebrisCount; i++) {
+    let wx, wz;
+    do {
+      wx = (rand() - 0.5) * planet.size * 0.85;
+      wz = (rand() - 0.5) * planet.size * 0.85;
+    } while (Math.hypot(wx, wz) < 25 || Math.hypot(wx - mineX, wz - mineZ) < 25 || Math.hypot(wx - shuttleX, wz - shuttleZ) < 20);
+    const wreck = buildDerelictWreck(rand);
+    wreck.position.set(wx, groundHeightFn(wx, wz), wz);
+    wreck.rotation.y = rand() * Math.PI * 2;
+    scene.add(wreck);
+  }
+
+  // ---- material chests: raw resources scattered across the surface, more (and worth more)
+  // tucked in the "special area" cave below - each one holds a single named material out of
+  // the 17 in MATERIALS (data.js), picked with rarity weighting so rare finds glow brighter
+  // and feel worth detouring for. The crate itself stays a neutral color; the crystal cluster
+  // on top is what's colored/glowing, so the material is readable from a distance.
   const oreChestGeo = new THREE.BoxGeometry(1.0, 0.75, 0.8);
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0x4a4640, metalness: 0.4, roughness: 0.6 });
+  const materialShardGeo = new THREE.ConeGeometry(0.16, 0.5, 5);
+  function buildMaterialChest(x, y, z, ry, rand) {
+    const matDef = pickMaterial(rand);
+    const glowStrength = matDef.rarity === 'rare' ? 0.75 : matDef.rarity === 'uncommon' ? 0.5 : 0.28;
+    const chest = new THREE.Mesh(oreChestGeo, crateMat);
+    chest.position.set(x, y, z);
+    chest.rotation.y = ry;
+    chest.castShadow = true;
+    const crystalMat = new THREE.MeshStandardMaterial({ color: matDef.color, emissive: matDef.color, emissiveIntensity: glowStrength, metalness: 0.3, roughness: 0.25 });
+    crystalMat.userData.baseGlow = glowStrength;
+    for (let c = 0; c < 3; c++) {
+      const shard = new THREE.Mesh(materialShardGeo, crystalMat);
+      shard.position.set((rand() - 0.5) * 0.5, 0.55 + rand() * 0.15, (rand() - 0.5) * 0.4);
+      shard.rotation.set((rand() - 0.5) * 0.5, rand() * Math.PI, (rand() - 0.5) * 0.5);
+      shard.scale.setScalar(0.7 + rand() * 0.6);
+      chest.add(shard);
+    }
+    chest.userData = { type: 'oreChest', collected: false, material: matDef.key, crystalMat, amount: 4 + Math.floor(rand() * 4) };
+    return chest;
+  }
   const oreChests = [];
-  const oreChestCount = 3;
+  const oreChestCount = 10;
   for (let i = 0; i < oreChestCount; i++) {
     let ox, oz;
     do {
       ox = (rand() - 0.5) * planet.size * 0.8;
       oz = (rand() - 0.5) * planet.size * 0.8;
     } while (Math.hypot(ox, oz) < 20 || Math.hypot(ox - mineX, oz - mineZ) < 20 || Math.hypot(ox - shuttleX, oz - shuttleZ) < 15);
-    const chest = new THREE.Mesh(oreChestGeo, oreChestMat);
-    chest.position.set(ox, groundHeightFn(ox, oz) + 0.02, oz);
-    chest.rotation.y = rand() * Math.PI;
-    chest.castShadow = true;
-    chest.userData = { type: 'oreChest', collected: false, amount: 5 + Math.floor(rand() * 4) };
+    const chest = buildMaterialChest(ox, groundHeightFn(ox, oz) + 0.02, oz, rand() * Math.PI, rand);
     scene.add(chest);
     oreChests.push(chest);
   }
@@ -1159,10 +1222,10 @@ function buildPlanetScene(planetId) {
   caveGroup.add(chest2);
   const caveTreasures = [chest, chest2];
 
-  // ore chests tucked in the cave - the "special area" ore, worth more per chest than the
-  // ones scattered on the surface since they take real effort (a whole cave) to reach
+  // material chests tucked in the cave - the "special area" materials, worth more per chest
+  // than the ones scattered on the surface since they take real effort (a whole cave) to reach
   const caveOreChests = [];
-  const caveOreChestCount = 2;
+  const caveOreChestCount = 5;
   for (let i = 0; i < caveOreChestCount; i++) {
     let cox, coz, tries = 0;
     do {
@@ -1172,10 +1235,9 @@ function buildPlanetScene(planetId) {
       tries++;
     } while (inSecretTrailZone(cox, coz) && tries < 6);
     if (inSecretTrailZone(cox, coz)) continue;
-    const oreChest = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.75, 0.8), new THREE.MeshStandardMaterial({ color: 0xb87333, metalness: 0.6, roughness: 0.4, emissive: 0x5a3010, emissiveIntensity: 0.25 }));
-    oreChest.position.set(cox, -0.1, coz);
-    oreChest.rotation.y = caveRand() * Math.PI;
-    oreChest.userData = { type: 'oreChest', collected: false, amount: 9 + Math.floor(caveRand() * 5), worldPos: caveOrigin.clone().add(oreChest.position) };
+    const oreChest = buildMaterialChest(cox, -0.1, coz, caveRand() * Math.PI, caveRand);
+    oreChest.userData.amount = 8 + Math.floor(caveRand() * 5);
+    oreChest.userData.worldPos = caveOrigin.clone().add(oreChest.position);
     caveGroup.add(oreChest);
     caveOreChests.push(oreChest);
   }
@@ -1508,8 +1570,8 @@ function buildPlanetScene(planetId) {
       caveCoinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
       if (!shuttleGroup.userData.searched) { chipGlow.material.emissiveIntensity = 0.5 + Math.sin(t * 4) * 0.4; }
-      oreChests.forEach((c) => { if (!c.userData.collected) c.material.emissiveIntensity = 0.2 + Math.sin(t * 2.5) * 0.15; });
-      caveOreChests.forEach((c) => { if (!c.userData.collected) c.material.emissiveIntensity = 0.2 + Math.sin(t * 2.5) * 0.15; });
+      oreChests.forEach((c) => { if (!c.userData.collected) c.userData.crystalMat.emissiveIntensity = c.userData.crystalMat.userData.baseGlow + Math.sin(t * 2.5) * 0.15; });
+      caveOreChests.forEach((c) => { if (!c.userData.collected) c.userData.crystalMat.emissiveIntensity = c.userData.crystalMat.userData.baseGlow + Math.sin(t * 2.5) * 0.15; });
       if (outfit && !outfit.userData.collected) {
         outfit.rotation.y = t * 0.8;
         outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15;

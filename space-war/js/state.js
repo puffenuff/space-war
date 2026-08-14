@@ -8,12 +8,14 @@ function freshState() {
   });
   const baseModules = {};
   BASE_MODULES.forEach((m) => { baseModules[m.key] = false; });
+  const materials = {};
+  MATERIALS.forEach((m) => { materials[m.key] = 0; });
   return {
     playerName: 'Billy Bob',
     coins: 40,
     health: 100,
     maxHealth: 100,
-    inventory: { scrap: 0, tools: 0, food: 0, ore: 0 },
+    inventory: { scrap: 0, tools: 0, food: 0, materials },
     upgrades: { speed: 0, jump: 0, damage: 0, hull: 0 }, // each level 0-3
     rocketParts: { engine: false, fuelTank: false, noseCone: false, fins: false, heatShield: false, guidanceCore: false },
     baseModules,
@@ -54,10 +56,14 @@ function loadGame() {
       state.planets[id] = Object.assign({}, fresh.planets[id], (parsed.planets && parsed.planets[id]) || {});
     });
     // same deal for every other nested object in state - Object.assign only merges at the top
-    // level, so a save missing a field added to one of these later (e.g. inventory.ore) would
-    // otherwise end up undefined instead of picking up the fresh default
+    // level, so a save missing a field added to one of these later (e.g. inventory.materials)
+    // would otherwise end up undefined instead of picking up the fresh default
     state.rocketParts = Object.assign({}, fresh.rocketParts, parsed.rocketParts || {});
     state.inventory = Object.assign({}, fresh.inventory, parsed.inventory || {});
+    // materials is itself nested inside inventory, so it needs its own explicit merge too -
+    // otherwise an old save's inventory.materials (missing newly-added material keys, or not
+    // existing at all pre-materials-system) would wholesale replace the fresh defaults
+    state.inventory.materials = Object.assign({}, fresh.inventory.materials, (parsed.inventory && parsed.inventory.materials) || {});
     state.upgrades = Object.assign({}, fresh.upgrades, parsed.upgrades || {});
     state.weaponsOwned = Object.assign({}, fresh.weaponsOwned, parsed.weaponsOwned || {});
     state.baseModules = Object.assign({}, fresh.baseModules, parsed.baseModules || {});

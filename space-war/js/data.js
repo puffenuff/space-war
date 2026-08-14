@@ -120,6 +120,46 @@ const PLANETS = {
   },
 };
 
+// ===================== RAW MATERIALS (Planet-Crafter-style resource chests) =====================
+// 17 named materials instead of one generic "ore" - rarer ones are worth chasing down and
+// glow brighter in their chest, and atmosphere missions/base modules ask for specific ones
+// instead of an undifferentiated pile.
+const MATERIALS = [
+  { key: 'iron', name: 'Iron', color: 0x9c6b4a, rarity: 'common' },
+  { key: 'silicon', name: 'Silicon', color: 0x6a7a8a, rarity: 'common' },
+  { key: 'aluminum', name: 'Aluminum', color: 0xc8ccd4, rarity: 'common' },
+  { key: 'ice', name: 'Ice', color: 0xbfe9ff, rarity: 'common' },
+  { key: 'magnesium', name: 'Magnesium', color: 0xe8e4d8, rarity: 'common' },
+  { key: 'sulfur', name: 'Sulfur', color: 0xe8d54a, rarity: 'common' },
+  { key: 'cobalt', name: 'Cobalt', color: 0x3a5fae, rarity: 'uncommon' },
+  { key: 'titanium', name: 'Titanium', color: 0x9aa5b0, rarity: 'uncommon' },
+  { key: 'zeolite', name: 'Zeolite', color: 0xd9b98a, rarity: 'uncommon' },
+  { key: 'phosphorus', name: 'Phosphorus', color: 0xd0ff6a, rarity: 'uncommon' },
+  { key: 'obsidian', name: 'Obsidian', color: 0x1c1620, rarity: 'uncommon' },
+  { key: 'selenium', name: 'Selenium', color: 0xc23a5a, rarity: 'uncommon' },
+  { key: 'tungsten', name: 'Tungsten', color: 0x5a5a62, rarity: 'rare' },
+  { key: 'iridium', name: 'Iridium', color: 0xe6ecf5, rarity: 'rare' },
+  { key: 'uranium', name: 'Uranium', color: 0x8aff5a, rarity: 'rare' },
+  { key: 'osmium', name: 'Osmium', color: 0x4a7a8a, rarity: 'rare' },
+  { key: 'superAlloy', name: 'Super Alloy', color: 0xffd35e, rarity: 'rare' },
+];
+const MATERIAL_ORDER = MATERIALS.map((m) => m.key);
+const MATERIAL_BY_KEY = {};
+MATERIALS.forEach((m) => { MATERIAL_BY_KEY[m.key] = m; });
+const MATERIAL_RARITY_WEIGHT = { common: 5, uncommon: 3, rare: 1 };
+
+// deterministic weighted pick - callers pass the planet's seeded rand() so chest contents
+// stay consistent across reloads and across every client in a multiplayer room
+function pickMaterial(rand) {
+  const total = MATERIALS.reduce((sum, m) => sum + MATERIAL_RARITY_WEIGHT[m.rarity], 0);
+  let r = rand() * total;
+  for (const m of MATERIALS) {
+    r -= MATERIAL_RARITY_WEIGHT[m.rarity];
+    if (r <= 0) return m;
+  }
+  return MATERIALS[MATERIALS.length - 1];
+}
+
 // Missions per planet. type: 'kill' | 'collect' | 'repair' | 'dig' | 'partpickup' | 'lostrocket'
 const MISSIONS = {
   1: [
@@ -132,7 +172,7 @@ const MISSIONS = {
     { id: 'p1m7', name: 'Deep Scrap Run', desc: 'Collect 10 scrap metal in total.', type: 'collect', item: 'scrap', target: 10, reward: { coins: 45, tools: 1 } },
     { id: 'p1m8', name: 'Rustholm Cleanup', desc: 'Defeat 10 raiders total.', type: 'kill', target: 10, reward: { coins: 70 } },
     { id: 'p1m9', name: 'Dune Scavenging', desc: 'Collect 16 scrap in total.', type: 'collect', item: 'scrap', target: 16, reward: { coins: 60, tools: 2 } },
-    { id: 'p1m10', name: 'Make Rustholm Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 17 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 17, reward: { coins: 170, tools: 2 } },
+    { id: 'p1m10', name: 'Make Rustholm Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 9 Iron and 8 Silicon from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { iron: 9, silicon: 8 }, reward: { coins: 170, tools: 2 } },
   ],
   2: [
     { id: 'p2m1', name: 'Frost Raiders', desc: 'Defeat 5 raiders on the ice fields.', type: 'kill', target: 5, reward: { coins: 45 } },
@@ -144,7 +184,7 @@ const MISSIONS = {
     { id: 'p2m7', name: 'Frozen Depths Scrap', desc: 'Collect 12 scrap in total.', type: 'collect', item: 'scrap', target: 12, reward: { coins: 55, tools: 1 } },
     { id: 'p2m8', name: 'Glacier Cleanup', desc: 'Defeat 14 raiders total.', type: 'kill', target: 14, reward: { coins: 85 } },
     { id: 'p2m9', name: 'Permafrost Scavenging', desc: 'Collect 18 scrap in total.', type: 'collect', item: 'scrap', target: 18, reward: { coins: 75, tools: 2 } },
-    { id: 'p2m10', name: 'Make Cryovale Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 19 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 19, reward: { coins: 190, tools: 2 } },
+    { id: 'p2m10', name: 'Make Cryovale Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 10 Ice and 9 Osmium from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { ice: 10, osmium: 9 }, reward: { coins: 190, tools: 2 } },
   ],
   3: [
     { id: 'p3m1', name: 'Ember Raiders', desc: 'Defeat 8 raiders in the lava fields of Emberfall.', type: 'kill', target: 8, reward: { coins: 55 } },
@@ -156,7 +196,7 @@ const MISSIONS = {
     { id: 'p3m7', name: 'Ash Flat Scrap Run', desc: 'Collect 16 scrap in total.', type: 'collect', item: 'scrap', target: 16, reward: { coins: 65, tools: 2 } },
     { id: 'p3m8', name: 'Emberfall Cleanup', desc: 'Defeat 20 raiders total.', type: 'kill', target: 20, reward: { coins: 100 } },
     { id: 'p3m9', name: 'Cinder Scavenging', desc: 'Collect 24 scrap in total.', type: 'collect', item: 'scrap', target: 24, reward: { coins: 90, tools: 3 } },
-    { id: 'p3m10', name: 'Make Emberfall Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 21 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 21, reward: { coins: 210, tools: 2 } },
+    { id: 'p3m10', name: 'Make Emberfall Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 11 Sulfur and 10 Obsidian from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { sulfur: 11, obsidian: 10 }, reward: { coins: 210, tools: 2 } },
   ],
   4: [
     { id: 'p4m1', name: 'Jungle Ambush', desc: 'Defeat 9 raiders hiding in the Verdantia canopy.', type: 'kill', target: 9, reward: { coins: 65 } },
@@ -168,7 +208,7 @@ const MISSIONS = {
     { id: 'p4m7', name: 'Undergrowth Scrap Run', desc: 'Collect 18 scrap in total.', type: 'collect', item: 'scrap', target: 18, reward: { coins: 75, tools: 2 } },
     { id: 'p4m8', name: 'Verdantia Cleanup', desc: 'Defeat 24 raiders total.', type: 'kill', target: 24, reward: { coins: 115 } },
     { id: 'p4m9', name: 'Deep Canopy Scavenging', desc: 'Collect 27 scrap in total.', type: 'collect', item: 'scrap', target: 27, reward: { coins: 105, tools: 3 } },
-    { id: 'p4m10', name: 'Make Verdantia Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 23 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 23, reward: { coins: 230, tools: 3 } },
+    { id: 'p4m10', name: 'Make Verdantia Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 12 Phosphorus and 11 Magnesium from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { phosphorus: 12, magnesium: 11 }, reward: { coins: 230, tools: 3 } },
   ],
   5: [
     { id: 'p5m1', name: 'Bog Raiders', desc: 'Defeat 10 raiders lurking in the Duskmoor mire.', type: 'kill', target: 10, reward: { coins: 75 } },
@@ -180,7 +220,7 @@ const MISSIONS = {
     { id: 'p5m7', name: 'Wetland Scrap Run', desc: 'Collect 20 scrap in total.', type: 'collect', item: 'scrap', target: 20, reward: { coins: 85, tools: 2 } },
     { id: 'p5m8', name: 'Duskmoor Cleanup', desc: 'Defeat 27 raiders total.', type: 'kill', target: 27, reward: { coins: 130 } },
     { id: 'p5m9', name: 'Sunken Scavenging', desc: 'Collect 30 scrap in total.', type: 'collect', item: 'scrap', target: 30, reward: { coins: 120, tools: 3 } },
-    { id: 'p5m10', name: 'Make Duskmoor Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 25 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 25, reward: { coins: 250, tools: 3 } },
+    { id: 'p5m10', name: 'Make Duskmoor Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 13 Zeolite and 12 Selenium from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { zeolite: 13, selenium: 12 }, reward: { coins: 250, tools: 3 } },
   ],
   6: [
     { id: 'p6m1', name: 'Canyon Raiders', desc: 'Defeat 11 raiders roaming the Ashcrag mesas.', type: 'kill', target: 11, reward: { coins: 85 } },
@@ -192,7 +232,7 @@ const MISSIONS = {
     { id: 'p6m7', name: 'Badlands Scrap Run', desc: 'Collect 22 scrap in total.', type: 'collect', item: 'scrap', target: 22, reward: { coins: 95, tools: 3 } },
     { id: 'p6m8', name: 'Ashcrag Cleanup', desc: 'Defeat 30 raiders total.', type: 'kill', target: 30, reward: { coins: 145 } },
     { id: 'p6m9', name: 'Mesa Deep Scavenging', desc: 'Collect 33 scrap in total.', type: 'collect', item: 'scrap', target: 33, reward: { coins: 135, tools: 3 } },
-    { id: 'p6m10', name: 'Make Ashcrag Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 27 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 27, reward: { coins: 270, tools: 3 } },
+    { id: 'p6m10', name: 'Make Ashcrag Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 14 Titanium and 13 Iron from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { titanium: 14, iron: 13 }, reward: { coins: 270, tools: 3 } },
   ],
   7: [
     { id: 'p7m1', name: 'Spire Sentinels', desc: 'Defeat 12 raiders guarding the Neonspire ruins.', type: 'kill', target: 12, reward: { coins: 95 } },
@@ -204,7 +244,7 @@ const MISSIONS = {
     { id: 'p7m7', name: 'Shard Scrap Run', desc: 'Collect 24 glowing scrap shards in total.', type: 'collect', item: 'scrap', target: 24, reward: { coins: 105, tools: 3 } },
     { id: 'p7m8', name: 'Neonspire Cleanup', desc: 'Defeat 33 raiders total.', type: 'kill', target: 33, reward: { coins: 160 } },
     { id: 'p7m9', name: 'Deep Shard Scavenging', desc: 'Collect 36 glowing scrap shards in total.', type: 'collect', item: 'scrap', target: 36, reward: { coins: 150, tools: 4 } },
-    { id: 'p7m10', name: 'Make Neonspire Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 29 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 29, reward: { coins: 290, tools: 3 } },
+    { id: 'p7m10', name: 'Make Neonspire Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 15 Iridium and 14 Silicon from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { iridium: 15, silicon: 14 }, reward: { coins: 290, tools: 3 } },
   ],
   8: [
     { id: 'p8m1', name: 'Storm Raiders', desc: 'Defeat 13 raiders braving the Stormreach highlands.', type: 'kill', target: 13, reward: { coins: 105 } },
@@ -216,7 +256,7 @@ const MISSIONS = {
     { id: 'p8m7', name: 'Storm-Scattered Scrap Run', desc: 'Collect 26 scrap in total.', type: 'collect', item: 'scrap', target: 26, reward: { coins: 115, tools: 3 } },
     { id: 'p8m8', name: 'Stormreach Cleanup', desc: 'Defeat 36 raiders total.', type: 'kill', target: 36, reward: { coins: 175 } },
     { id: 'p8m9', name: 'Highland Deep Scavenging', desc: 'Collect 39 scrap in total.', type: 'collect', item: 'scrap', target: 39, reward: { coins: 165, tools: 4 } },
-    { id: 'p8m10', name: 'Make Stormreach Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 31 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 31, reward: { coins: 310, tools: 4 } },
+    { id: 'p8m10', name: 'Make Stormreach Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 16 Cobalt and 15 Aluminum from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { cobalt: 16, aluminum: 15 }, reward: { coins: 310, tools: 4 } },
   ],
   9: [
     { id: 'p9m1', name: 'Lunar Raiders', desc: 'Defeat 15 raiders roaming the lunar craters.', type: 'kill', target: 15, reward: { coins: 115 } },
@@ -228,7 +268,7 @@ const MISSIONS = {
     { id: 'p9m7', name: 'Regolith Deep Scrap Run', desc: 'Collect 28 scrap in total.', type: 'collect', item: 'scrap', target: 28, reward: { coins: 125, tools: 4 } },
     { id: 'p9m8', name: 'Lunaris Cleanup', desc: 'Defeat 39 raiders total.', type: 'kill', target: 39, reward: { coins: 190 } },
     { id: 'p9m9', name: 'Crater Deep Scavenging', desc: 'Collect 42 scrap in total.', type: 'collect', item: 'scrap', target: 42, reward: { coins: 180, tools: 4 } },
-    { id: 'p9m10', name: 'Make Lunaris Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 33 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 33, reward: { coins: 330, tools: 4 } },
+    { id: 'p9m10', name: 'Make Lunaris Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 17 Titanium and 16 Magnesium from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { titanium: 17, magnesium: 16 }, reward: { coins: 330, tools: 4 } },
   ],
   10: [
     { id: 'p10m1', name: 'Reef Raiders', desc: 'Defeat 16 raiders lurking among the coral spires.', type: 'kill', target: 16, reward: { coins: 125 } },
@@ -240,7 +280,7 @@ const MISSIONS = {
     { id: 'p10m7', name: 'Deep Coral Scrap Run', desc: 'Collect 30 scrap in total.', type: 'collect', item: 'scrap', target: 30, reward: { coins: 135, tools: 4 } },
     { id: 'p10m8', name: 'Coralis Cleanup', desc: 'Defeat 42 raiders total.', type: 'kill', target: 42, reward: { coins: 205 } },
     { id: 'p10m9', name: 'Abyssal Scavenging', desc: 'Collect 45 scrap in total.', type: 'collect', item: 'scrap', target: 45, reward: { coins: 195, tools: 5 } },
-    { id: 'p10m10', name: 'Make Coralis Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 35 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 35, reward: { coins: 350, tools: 4 } },
+    { id: 'p10m10', name: 'Make Coralis Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 18 Zeolite and 17 Phosphorus from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { zeolite: 18, phosphorus: 17 }, reward: { coins: 350, tools: 4 } },
   ],
   11: [
     { id: 'p11m1', name: 'Ash Raiders', desc: 'Defeat 17 raiders in the Cindergate ruins.', type: 'kill', target: 17, reward: { coins: 135 } },
@@ -252,7 +292,7 @@ const MISSIONS = {
     { id: 'p11m7', name: 'Cinder Drift Scrap Run', desc: 'Collect 32 scrap in total.', type: 'collect', item: 'scrap', target: 32, reward: { coins: 145, tools: 4 } },
     { id: 'p11m8', name: 'Cindergate Cleanup', desc: 'Defeat 45 raiders total.', type: 'kill', target: 45, reward: { coins: 220 } },
     { id: 'p11m9', name: 'Ashfall Scavenging', desc: 'Collect 48 scrap in total.', type: 'collect', item: 'scrap', target: 48, reward: { coins: 210, tools: 5 } },
-    { id: 'p11m10', name: 'Make Cindergate Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 37 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 37, reward: { coins: 370, tools: 4 } },
+    { id: 'p11m10', name: 'Make Cindergate Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 19 Sulfur and 18 Tungsten from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { sulfur: 19, tungsten: 18 }, reward: { coins: 370, tools: 4 } },
   ],
   12: [
     { id: 'p12m1', name: 'Crimson Raiders', desc: 'Defeat 18 raiders roaming Bloodmere.', type: 'kill', target: 18, reward: { coins: 145 } },
@@ -264,7 +304,7 @@ const MISSIONS = {
     { id: 'p12m7', name: 'Bloodstone Deep Scrap Run', desc: 'Collect 34 scrap in total.', type: 'collect', item: 'scrap', target: 34, reward: { coins: 155, tools: 5 } },
     { id: 'p12m8', name: 'Bloodmere Cleanup', desc: 'Defeat 48 raiders total.', type: 'kill', target: 48, reward: { coins: 235 } },
     { id: 'p12m9', name: 'Crimson Deep Scavenging', desc: 'Collect 51 scrap in total.', type: 'collect', item: 'scrap', target: 51, reward: { coins: 225, tools: 5 } },
-    { id: 'p12m10', name: 'Make Bloodmere Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 39 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 39, reward: { coins: 390, tools: 5 } },
+    { id: 'p12m10', name: 'Make Bloodmere Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 20 Selenium and 19 Cobalt from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { selenium: 20, cobalt: 19 }, reward: { coins: 390, tools: 5 } },
   ],
   13: [
     { id: 'p13m1', name: 'Toxic Raiders', desc: 'Defeat 19 mutated raiders on Toxara.', type: 'kill', target: 19, reward: { coins: 155 } },
@@ -276,7 +316,7 @@ const MISSIONS = {
     { id: 'p13m7', name: 'Glowing Marsh Scrap Run', desc: 'Collect 36 scrap in total.', type: 'collect', item: 'scrap', target: 36, reward: { coins: 165, tools: 5 } },
     { id: 'p13m8', name: 'Toxara Cleanup', desc: 'Defeat 51 mutated raiders total.', type: 'kill', target: 51, reward: { coins: 250 } },
     { id: 'p13m9', name: 'Irradiated Deep Scavenging', desc: 'Collect 54 scrap in total.', type: 'collect', item: 'scrap', target: 54, reward: { coins: 240, tools: 6 } },
-    { id: 'p13m10', name: 'Make Toxara Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 41 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 41, reward: { coins: 410, tools: 5 } },
+    { id: 'p13m10', name: 'Make Toxara Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 21 Uranium and 20 Osmium from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { uranium: 21, osmium: 20 }, reward: { coins: 410, tools: 5 } },
   ],
   14: [
     { id: 'p14m1', name: 'Xenar Defense', desc: 'Defeat 23 alien raiders.', type: 'kill', target: 23, reward: { coins: 170 } },
@@ -289,7 +329,7 @@ const MISSIONS = {
     { id: 'p14m8', name: 'Last Crystal Scrap Run', desc: 'Collect 42 scrap crystals in total.', type: 'collect', item: 'scrap', target: 42, reward: { coins: 190, tools: 5 } },
     { id: 'p14m9', name: 'Xenar Prime Cleanup', desc: 'Defeat 58 alien raiders total.', type: 'kill', target: 58, reward: { coins: 280 } },
     { id: 'p14m10', name: 'Final Deep Scavenging', desc: 'Collect 60 scrap crystals in total.', type: 'collect', item: 'scrap', target: 60, reward: { coins: 270, tools: 6 } },
-    { id: 'p14m11', name: 'Make Xenar Prime Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 43 ore from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', oreTarget: 43, reward: { coins: 430, tools: 6 } },
+    { id: 'p14m11', name: 'Make Xenar Prime Inhabitable', desc: 'Find the blueprint microchip in the crashed shuttle and gather 22 Super Alloy and 21 Iridium from chests around the surface and cave to seed a breathable atmosphere.', type: 'atmosphere', materialTargets: { superAlloy: 22, iridium: 21 }, reward: { coins: 430, tools: 6 } },
   ],
 };
 
@@ -313,12 +353,12 @@ const CHEAT_CODES = {
 // gathered out in the field. Each built module adds a small permanent max-health bonus, so the
 // crafting loop feeds back into survivability instead of just being a checklist.
 const BASE_MODULES = [
-  { key: 'solarArray', name: 'Solar Array', desc: 'Clean power for the whole base.', cost: { ore: 15, scrap: 8 }, healthBonus: 10 },
-  { key: 'waterReclaimer', name: 'Water Reclaimer', desc: 'Recycles water for life support.', cost: { ore: 12, tools: 6 }, healthBonus: 10 },
-  { key: 'greenhouseDome', name: 'Greenhouse Dome', desc: 'Grows food to keep the crew fed.', cost: { ore: 18, scrap: 10 }, healthBonus: 10 },
-  { key: 'commsArray', name: 'Comms Array', desc: 'Long-range antenna for contacting other worlds.', cost: { ore: 20, tools: 8 }, healthBonus: 10 },
-  { key: 'medBay', name: 'Med Bay', desc: 'A full medical suite for emergencies.', cost: { ore: 25, scrap: 12, tools: 6 }, healthBonus: 15 },
-  { key: 'shieldGenerator', name: 'Shield Generator', desc: 'Deflects debris and raiders alike.', cost: { ore: 30, scrap: 15, tools: 10 }, healthBonus: 15 },
+  { key: 'solarArray', name: 'Solar Array', desc: 'Clean power for the whole base.', cost: { silicon: 10, aluminum: 6, scrap: 8 }, healthBonus: 10 },
+  { key: 'waterReclaimer', name: 'Water Reclaimer', desc: 'Recycles water for life support.', cost: { ice: 10, zeolite: 5, tools: 6 }, healthBonus: 10 },
+  { key: 'greenhouseDome', name: 'Greenhouse Dome', desc: 'Grows food to keep the crew fed.', cost: { phosphorus: 8, magnesium: 8, scrap: 10 }, healthBonus: 10 },
+  { key: 'commsArray', name: 'Comms Array', desc: 'Long-range antenna for contacting other worlds.', cost: { titanium: 8, cobalt: 6, tools: 8 }, healthBonus: 10 },
+  { key: 'medBay', name: 'Med Bay', desc: 'A full medical suite for emergencies.', cost: { selenium: 6, sulfur: 8, iron: 6, tools: 6 }, healthBonus: 15 },
+  { key: 'shieldGenerator', name: 'Shield Generator', desc: 'Deflects debris and raiders alike.', cost: { tungsten: 6, osmium: 5, superAlloy: 3, scrap: 15 }, healthBonus: 15 },
 ];
 
 // ===================== SECRET VAULT BOSSES (one per planet, except Cryovale's bespoke yeti) =====================

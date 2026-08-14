@@ -27,7 +27,7 @@ function updateHealth(health, max) {
 
 function updateCoins(coins) { $('coin-count').textContent = coins; }
 function updateParts(count) { $('parts-count').textContent = count; }
-function updateOre(count) { $('ore-count').textContent = count; }
+function updateMaterials(count) { $('materials-count').textContent = count; }
 
 function setLocationLabel(text) { $('location-label').textContent = text; }
 
@@ -118,7 +118,7 @@ function showStarmapHint(text) {
 // game.js calls these as ui.xxx(...), so bundle them into a namespace object.
 const ui = {
   showLoading, showTitleScreen, showHUD, setContinueEnabled,
-  updateHealth, updateCoins, updateParts, updateOre, setLocationLabel,
+  updateHealth, updateCoins, updateParts, updateMaterials, setLocationLabel,
   showInteractPrompt, hideInteractPrompt, showToast,
   showDigProgress, hideDigProgress, showCrosshair, updateAmmo, showBossHealth,
   openPanel, closePanel, isPanelOpen, initPanelClose,

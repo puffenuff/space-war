@@ -77,8 +77,8 @@ function completeMissionByType(planetId, type, toast) {
 }
 
 // atmosphere missions need two things done before they complete: the blueprint microchip
-// found in that planet's crashed shuttle, and enough ore banked (which gets spent on
-// completion) - call this whenever either one changes
+// found in that planet's crashed shuttle, and enough of each of its two required named
+// materials banked (which gets spent on completion) - call this whenever either one changes
 function checkAtmosphereMission(planetId, toast) {
   ensurePlanetMissions(planetId);
   const def = MISSIONS[planetId].find((m) => m.type === 'atmosphere');
@@ -86,8 +86,9 @@ function checkAtmosphereMission(planetId, toast) {
   const prog = state.planets[planetId].missions[def.id];
   if (prog.done) return;
   if (!state.planets[planetId].blueprintFound) return;
-  if (state.inventory.ore < def.oreTarget) return;
-  state.inventory.ore -= def.oreTarget;
+  const haveAll = Object.entries(def.materialTargets).every(([key, amount]) => state.inventory.materials[key] >= amount);
+  if (!haveAll) return;
+  Object.entries(def.materialTargets).forEach(([key, amount]) => { state.inventory.materials[key] -= amount; });
   completeMission(planetId, def.id, toast);
 }
 
@@ -97,7 +98,10 @@ function missionProgressLabel(planetId, def) {
   if (def.type === 'kill' || def.type === 'collect') return `${prog.progress || 0}/${def.target}`;
   if (def.type === 'atmosphere') {
     const chipStatus = state.planets[planetId].blueprintFound ? 'chip found' : 'chip missing';
-    return `${Math.min(state.inventory.ore, def.oreTarget)}/${def.oreTarget} ore, ${chipStatus}`;
+    const matStatus = Object.entries(def.materialTargets)
+      .map(([key, amount]) => `${Math.min(state.inventory.materials[key], amount)}/${amount} ${MATERIAL_BY_KEY[key].name}`)
+      .join(', ');
+    return `${matStatus}, ${chipStatus}`;
   }
   return 'In progress';
 }

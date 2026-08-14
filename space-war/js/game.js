@@ -61,6 +61,7 @@ function applyUpgradeEffects() {
 
 function speedMultiplier() { return 1 + state.upgrades.speed * 0.16; }
 function gunDamage(baseDamage) { return baseDamage + state.upgrades.damage * 6; }
+function totalMaterials() { return Object.values(state.inventory.materials).reduce((sum, v) => sum + v, 0); }
 
 // ===================== GROUND HEIGHT =====================
 function getGroundHeightCurrent(x, z) {
@@ -303,9 +304,10 @@ function collectiblesTick(dt) {
       if (pPos.distanceTo(c.position) < 1.8) {
         c.userData.collected = true;
         c.visible = false;
-        state.inventory.ore += c.userData.amount;
+        const matDef = MATERIAL_BY_KEY[c.userData.material];
+        state.inventory.materials[c.userData.material] += c.userData.amount;
         sfx.scrap();
-        ui.showToast(`+${c.userData.amount} Ore`);
+        ui.showToast(`+${c.userData.amount} ${matDef.name}`);
         checkAtmosphereMission(currentPlanetId, missionToast);
         broadcastLoot('ore', i);
       }
@@ -351,9 +353,10 @@ function collectiblesTick(dt) {
       if (pPos.distanceTo(c.userData.worldPos) < 1.8) {
         c.userData.collected = true;
         c.visible = false;
-        state.inventory.ore += c.userData.amount;
+        const matDef = MATERIAL_BY_KEY[c.userData.material];
+        state.inventory.materials[c.userData.material] += c.userData.amount;
         sfx.scrap();
-        ui.showToast(`+${c.userData.amount} Ore (special find!)`);
+        ui.showToast(`+${c.userData.amount} ${matDef.name} (special find!)`);
         checkAtmosphereMission(currentPlanetId, missionToast);
         broadcastLoot('caveOre', i);
       }
@@ -1344,7 +1347,7 @@ function tick() {
 
   ui.updateCoins(state.coins);
   ui.updateParts(rocketPartsCount());
-  ui.updateOre(state.inventory.ore);
+  ui.updateMaterials(totalMaterials());
   ui.updateHealth(state.health, state.maxHealth);
   const showCombatHud = mode === 'planet' && !drivingVehicle && !ui.isPanelOpen();
   ui.showCrosshair(showCombatHud);
@@ -1495,19 +1498,33 @@ function openMissionLog() {
 }
 
 // ===================== CRAFT / BASE BUILDING =====================
+function craftInventoryAmount(key) {
+  return MATERIAL_BY_KEY[key] ? (state.inventory.materials[key] || 0) : (state.inventory[key] || 0);
+}
 function formatCraftCost(cost) {
-  return Object.entries(cost).map(([k, v]) => `${v} ${k}`).join(', ');
+  return Object.entries(cost).map(([k, v]) => `${v} ${(MATERIAL_BY_KEY[k] && MATERIAL_BY_KEY[k].name) || k}`).join(', ');
 }
 function canAffordCraftCost(cost) {
-  return Object.entries(cost).every(([k, v]) => (state.inventory[k] || 0) >= v);
+  return Object.entries(cost).every(([k, v]) => craftInventoryAmount(k) >= v);
 }
 
 function openCraft() {
   const body = document.createElement('div');
   const hint = document.createElement('p');
-  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 8px;';
-  hint.textContent = `Build modules for the base with materials gathered out in the field. Have: ${state.inventory.ore} ore, ${state.inventory.scrap} scrap, ${state.inventory.tools} tools.`;
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 4px;';
+  hint.textContent = 'Build modules for the base using materials gathered out in the field.';
   body.appendChild(hint);
+
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px 10px; padding:0 2px 10px; font-size:12px; color:#cde;';
+  MATERIALS.forEach((m) => {
+    const hex = '#' + m.color.toString(16).padStart(6, '0');
+    const chip = document.createElement('span');
+    chip.innerHTML = `<span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${hex};margin-right:4px;"></span>${m.name}: ${state.inventory.materials[m.key] || 0}`;
+    grid.appendChild(chip);
+  });
+  body.appendChild(grid);
+
   BASE_MODULES.forEach((mod) => {
     const built = !!state.baseModules[mod.key];
     const row = document.createElement('div');
@@ -1521,11 +1538,14 @@ function openCraft() {
       btn.textContent = formatCraftCost(mod.cost);
       btn.disabled = !canAffordCraftCost(mod.cost);
       btn.onclick = () => {
-        Object.entries(mod.cost).forEach(([k, v]) => { state.inventory[k] -= v; });
+        Object.entries(mod.cost).forEach(([k, v]) => {
+          if (MATERIAL_BY_KEY[k]) state.inventory.materials[k] -= v;
+          else state.inventory[k] -= v;
+        });
         state.baseModules[mod.key] = true;
         applyUpgradeEffects();
         saveGame();
-        ui.updateOre(state.inventory.ore);
+        ui.updateMaterials(totalMaterials());
         ui.updateHealth(state.health, state.maxHealth);
         sfx.buy();
         ui.showToast(`Built: ${mod.name}!  +${mod.healthBonus} Max Health`);
