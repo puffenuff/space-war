@@ -56,6 +56,36 @@ class SpaceFlight {
     this.scene.add(pMesh);
     this.destPlanetMesh = pMesh;
 
+    // other worlds in the system, drifting past off to either side of the flight path -
+    // borrows colors from other planets' data so it reads as "the same solar system"
+    this.sideBodies = [];
+    const otherIds = PLANET_ID_LIST.filter((id) => id !== destPlanetId);
+    for (let i = 0; i < 6; i++) {
+      const srcPlanet = PLANETS[otherIds[Math.floor(Math.random() * otherIds.length)]];
+      const side = i % 2 === 0 ? 1 : -1;
+      const radius = 14 + Math.random() * 34;
+      const body = new THREE.Mesh(
+        new THREE.SphereGeometry(radius, 16, 12),
+        new THREE.MeshStandardMaterial({ color: srcPlanet.ground, roughness: 0.85, emissive: srcPlanet.ground, emissiveIntensity: 0.1 })
+      );
+      body.position.set(
+        side * (130 + Math.random() * 220),
+        (Math.random() - 0.5) * 160,
+        -(150 + Math.random() * (this.travelGoal + 350))
+      );
+      body.userData = { spin: 0.05 + Math.random() * 0.15 };
+      this.scene.add(body);
+      this.sideBodies.push(body);
+      if (i === 1 || i === 4) {
+        const ring = new THREE.Mesh(
+          new THREE.RingGeometry(radius * 1.4, radius * 2.1, 32),
+          new THREE.MeshBasicMaterial({ color: srcPlanet.outfitColor || 0xd4af37, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+        );
+        ring.rotation.x = Math.PI / 2.5;
+        body.add(ring);
+      }
+    }
+
     this.ship = createShip();
     this.scene.add(this.ship);
 
@@ -100,6 +130,7 @@ class SpaceFlight {
 
     const flick = 1 + Math.sin(performance.now() * 0.02) * 0.2;
     this.ship.userData.flame.scale.set(flick, flick, 1);
+    this.sideBodies.forEach((b) => { b.rotation.y += b.userData.spin * dt; });
 
     this.fireCooldown -= dt;
     if ((input.fireHeld || input.firePressed) && this.fireCooldown <= 0) {

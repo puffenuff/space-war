@@ -280,7 +280,9 @@ function buildPlanetScene(planetId) {
   const rand = seededRand(planetId * 991 + 7);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(planet.sky);
+  // eased toward deep space rather than the raw atmospheric color, so the sky doesn't read
+  // as a flat cartoon backdrop - the stars/sky-planets layered in below sell the rest
+  scene.background = new THREE.Color(planet.sky).lerp(new THREE.Color(0x05070f), 0.3);
   // fog draw distance is capped rather than scaled with planet.size - on a much bigger map
   // that keeps rendering/decoration cost bounded (nothing needs to be drawn crisply far past
   // this regardless of how big the map is) while the horizon skirt still makes the ground
@@ -325,6 +327,25 @@ function buildPlanetScene(planetId) {
   moonSprite.scale.set(38, 38, 1);
   moonSprite.position.set(-380, 300, 250);
   scene.add(moonSprite);
+
+  // other worlds in this system, visible hanging in the sky - real shaded spheres (not flat
+  // sprites) borrowing colors from other planets' data, so the sky hints that a whole system
+  // of worlds exists beyond this one. Positions are seeded, so each planet's sky is fixed.
+  const otherPlanetIds = PLANET_ID_LIST.filter((id) => id !== planetId);
+  const skyPlanetCount = 2 + Math.floor(rand() * 2);
+  for (let i = 0; i < skyPlanetCount; i++) {
+    const srcPlanet = PLANETS[otherPlanetIds[Math.floor(rand() * otherPlanetIds.length)]];
+    const theta = rand() * Math.PI * 2;
+    const phi = rand() * Math.PI * 0.35;
+    const r = 550 + rand() * 250;
+    const skyPlanetRadius = 18 + rand() * 22;
+    const skyPlanet = new THREE.Mesh(
+      new THREE.SphereGeometry(skyPlanetRadius, 14, 10),
+      new THREE.MeshStandardMaterial({ color: srcPlanet.ground, roughness: 0.85, emissive: srcPlanet.ground, emissiveIntensity: 0.15, fog: false })
+    );
+    skyPlanet.position.set(Math.cos(theta) * Math.sin(phi) * r, Math.cos(phi) * r * 0.5 + 150, Math.sin(theta) * Math.sin(phi) * r);
+    scene.add(skyPlanet);
+  }
 
   // ---- ambient weather, themed per planet (falling snow/ash/dust, rising bubbles/spores...) ----
   const weatherCfg = (WEATHER_BY_THEME[planet.theme] || WEATHER_BY_THEME.desert);
