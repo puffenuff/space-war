@@ -267,18 +267,19 @@ function collectiblesTick(dt) {
   const range = 1.5;
 
   if (!inCave) {
-    b.scrapPickups.forEach((m) => {
+    b.scrapPickups.forEach((m, i) => {
       if (m.userData.collected) return;
       if (pPos.distanceTo(m.position) < range) {
         m.userData.collected = true;
         m.visible = false;
         state.inventory.scrap += 1;
         sfx.scrap();
-        progressCollect(currentPlanetId, missionToast);
+        progressCollectNet(currentPlanetId, missionToast);
         ui.showToast('+1 Scrap');
+        broadcastLoot('scrap', i);
       }
     });
-    b.coinPickups.forEach((m) => {
+    b.coinPickups.forEach((m, i) => {
       if (m.userData.collected) return;
       if (pPos.distanceTo(m.position) < range) {
         m.userData.collected = true;
@@ -286,6 +287,7 @@ function collectiblesTick(dt) {
         state.coins += m.userData.value;
         sfx.coin();
         ui.showToast(`+${m.userData.value} Coins`);
+        broadcastLoot('coin', i);
       }
     });
     if (b.partPickup && !b.partPickup.userData.collected && pPos.distanceTo(b.partPickup.position) < 1.9) {
@@ -296,7 +298,7 @@ function collectiblesTick(dt) {
       completeMissionByType(currentPlanetId, 'partpickup', missionToast);
       ui.showToast(`${labelForPart(b.partPickup.userData.part)} acquired!`);
     }
-    (b.oreChests || []).forEach((c) => {
+    (b.oreChests || []).forEach((c, i) => {
       if (c.userData.collected) return;
       if (pPos.distanceTo(c.position) < 1.8) {
         c.userData.collected = true;
@@ -305,21 +307,23 @@ function collectiblesTick(dt) {
         sfx.scrap();
         ui.showToast(`+${c.userData.amount} Ore`);
         checkAtmosphereMission(currentPlanetId, missionToast);
+        broadcastLoot('ore', i);
       }
     });
   } else {
-    (b.caveScrapPickups || []).forEach((m) => {
+    (b.caveScrapPickups || []).forEach((m, i) => {
       if (m.userData.collected) return;
       if (pPos.distanceTo(m.userData.worldPos) < range) {
         m.userData.collected = true;
         m.visible = false;
         state.inventory.scrap += 1;
         sfx.scrap();
-        progressCollect(currentPlanetId, missionToast);
+        progressCollectNet(currentPlanetId, missionToast);
         ui.showToast('+1 Scrap');
+        broadcastLoot('caveScrap', i);
       }
     });
-    (b.caveCoinPickups || []).forEach((m) => {
+    (b.caveCoinPickups || []).forEach((m, i) => {
       if (m.userData.collected) return;
       if (pPos.distanceTo(m.userData.worldPos) < range) {
         m.userData.collected = true;
@@ -327,9 +331,10 @@ function collectiblesTick(dt) {
         state.coins += m.userData.value;
         sfx.coin();
         ui.showToast(`+${m.userData.value} Coins`);
+        broadcastLoot('caveCoin', i);
       }
     });
-    (b.caveTreasures || [b.chest]).forEach((c) => {
+    (b.caveTreasures || [b.chest]).forEach((c, i) => {
       if (c.userData.collected) return;
       if (pPos.distanceTo(c.userData.worldPos) < 1.8) {
         c.userData.collected = true;
@@ -338,9 +343,10 @@ function collectiblesTick(dt) {
         state.inventory.tools += 1;
         sfx.partFound();
         ui.showToast(`Cave Treasure! +${coinGain} Coins, +1 Tool`);
+        broadcastLoot('treasure', i);
       }
     });
-    (b.caveOreChests || []).forEach((c) => {
+    (b.caveOreChests || []).forEach((c, i) => {
       if (c.userData.collected) return;
       if (pPos.distanceTo(c.userData.worldPos) < 1.8) {
         c.userData.collected = true;
@@ -349,6 +355,7 @@ function collectiblesTick(dt) {
         sfx.scrap();
         ui.showToast(`+${c.userData.amount} Ore (special find!)`);
         checkAtmosphereMission(currentPlanetId, missionToast);
+        broadcastLoot('caveOre', i);
       }
     });
     if (b.outfit && !b.outfit.userData.collected && pPos.distanceTo(b.outfit.userData.worldPos) < 2.0) {
@@ -362,6 +369,56 @@ function collectiblesTick(dt) {
     }
   }
 }
+
+// ===================== MULTIPLAYER: shared loot =====================
+// Fungible field pickups (scrap/coins/ore/cave treasure) are shared: once anyone in the
+// party grabs one it disappears for everyone, so party members aren't fighting over the
+// same rock. Unique progression items (rocket parts, outfits, blueprint chips) are NOT
+// shared this way - each player finds and keeps their own.
+const LOOT_ARRAYS = {
+  scrap: (b) => b.scrapPickups,
+  coin: (b) => b.coinPickups,
+  ore: (b) => b.oreChests,
+  caveScrap: (b) => b.caveScrapPickups,
+  caveCoin: (b) => b.caveCoinPickups,
+  caveOre: (b) => b.caveOreChests,
+  treasure: (b) => b.caveTreasures || [b.chest],
+};
+
+function broadcastLoot(kind, index) {
+  if (net.isConnected()) net.send('loot', { planetId: currentPlanetId, inCave, kind, index });
+}
+
+net.on('loot', (msg) => {
+  if (msg.planetId !== currentPlanetId || msg.inCave !== inCave) return;
+  const b = activeBuild;
+  const getArr = b && LOOT_ARRAYS[msg.kind];
+  const arr = getArr && getArr(b);
+  const item = arr && arr[msg.index];
+  if (item && !item.userData.collected) {
+    item.userData.collected = true;
+    if ('visible' in item) item.visible = false;
+  }
+});
+
+// ===================== MULTIPLAYER: shared mission progress =====================
+// Kill/collect progress (simple counters) is shared with the party on the same planet -
+// a raider your friend kills counts toward your own kill-mission too. Progress that's
+// gated behind a unique item (blueprint chips, rocket parts) stays individual, since
+// those aren't shared loot either - see LOOT_ARRAYS above.
+function progressKillNet(planetId, toast) {
+  progressKill(planetId, toast);
+  if (net.isConnected()) net.send('missionProgress', { planetId, kind: 'kill' });
+}
+function progressCollectNet(planetId, toast) {
+  progressCollect(planetId, toast);
+  if (net.isConnected()) net.send('missionProgress', { planetId, kind: 'collect' });
+}
+net.on('missionProgress', (msg) => {
+  if (msg.planetId !== currentPlanetId) return;
+  if (msg.kind === 'kill') progressKill(msg.planetId, missionToast);
+  else if (msg.kind === 'collect') progressCollect(msg.planetId, missionToast);
+});
 
 function findNearestInteractable() {
   if (mode === 'base') {
@@ -799,9 +856,59 @@ function completeRepair(vehicleMesh) {
 }
 
 // ===================== COMBAT (ground) =====================
+// true if this client should treat raiders (not bosses/yeti, which are always local-only)
+// as puppets driven by the party host's snapshots instead of running AI/damage locally -
+// only when the host is actually here too, so a guest exploring solo elsewhere still gets
+// normal single-player raiders instead of frozen ones with no one to drive them
+function hostIsHere() {
+  if (!net.isConnected() || net.isHost()) return false;
+  const h = net.remotePlayers[net.hostId];
+  return !!h && h.mode === mode && h.inCave === inCave && (mode !== 'planet' || h.planetId === currentPlanetId);
+}
+
+// secret-room ambush raiders are excluded - they're dynamically spawned per-player when
+// that player triggers their own vault, so their array index isn't the same thing across
+// clients the way the deterministic initial spawn list is. Those stay fully local, like bosses.
+function isSharedRaider(e) {
+  return e.userData.kind !== 'boss' && e.userData.kind !== 'yeti' && !e.userData.secretRoom;
+}
+
+function killEnemyLocal(b, e, opts = {}) {
+  const grantReward = opts.grantReward !== false;
+  const isYeti = e.userData.kind === 'yeti';
+  const isBoss = isYeti || e.userData.kind === 'boss';
+  const bossLabel = isYeti ? 'YETI' : e.userData.displayName;
+  e.userData.alive = false;
+  if (!e.userData.noRespawn) e.userData.respawnAt = elapsed + 25;
+  b.explosions.push(createExplosion(b.scene, e.position, isYeti ? 0xbfe8ff : (e.userData.deathColor || 0xffaa33), isBoss ? 30 : 16));
+  b.scene.remove(e);
+  sfx.explosion();
+  if (!grantReward) return;
+  const coinGain = isBoss ? (60 + Math.floor(Math.random() * 40)) : (8 + Math.floor(Math.random() * 10));
+  state.coins += coinGain;
+  progressKillNet(currentPlanetId, missionToast);
+  const killText = isBoss ? `${bossLabel} DEFEATED!` : 'Raider down!';
+  if (e.userData.secretRoom && b.secretRoom) {
+    b.secretRoom.remaining -= 1;
+    ui.showToast(`${killText} +${coinGain} Coins (${b.secretRoom.remaining} left)`);
+    if (b.secretRoom.remaining <= 0) resolveSecretRoom(b);
+  } else {
+    ui.showToast(`${killText} +${coinGain} Coins`);
+  }
+}
+
 function updateGroundCombat(dt) {
   const b = activeBuild;
+  const deferToHost = hostIsHere();
   b.enemies.forEach((e) => {
+    if (isSharedRaider(e) && deferToHost) {
+      if (e.userData.alive && e.userData.netTarget) {
+        const lerpT = Math.min(1, dt * 6);
+        e.position.lerp(e.userData.netTarget, lerpT);
+        e.rotation.y = lerpAngle(e.rotation.y, e.userData.netTargetRy || 0, lerpT);
+      }
+      return;
+    }
     if (!e.userData.alive) {
       if (e.userData.respawnAt && elapsed >= e.userData.respawnAt) {
         e.userData.alive = true; e.userData.hp = e.userData.maxHp; e.userData.respawnAt = null;
@@ -846,30 +953,24 @@ function updateGroundCombat(dt) {
     for (const e of b.enemies) {
       if (!e.userData.alive) continue;
       if (p.position.distanceTo(e.position) < (e.userData.hitRadius || 1.5)) {
-        e.userData.hp -= p.userData.damage;
         b.scene.remove(p); b.projectiles.splice(i, 1); hit = true;
-        if (e.userData.hp <= 0) {
-          const isYeti = e.userData.kind === 'yeti';
-          const isBoss = isYeti || e.userData.kind === 'boss';
-          const bossLabel = isYeti ? 'YETI' : e.userData.displayName;
-          e.userData.alive = false;
-          if (!e.userData.noRespawn) e.userData.respawnAt = elapsed + 25;
-          b.explosions.push(createExplosion(b.scene, e.position, isYeti ? 0xbfe8ff : (e.userData.deathColor || 0xffaa33), isBoss ? 30 : 16));
-          b.scene.remove(e);
-          const coinGain = isBoss ? (60 + Math.floor(Math.random() * 40)) : (8 + Math.floor(Math.random() * 10));
-          state.coins += coinGain;
-          sfx.explosion();
-          progressKill(currentPlanetId, missionToast);
-          const killText = isBoss ? `${bossLabel} DEFEATED!` : 'Raider down!';
-          if (e.userData.secretRoom && b.secretRoom) {
-            b.secretRoom.remaining -= 1;
-            ui.showToast(`${killText} +${coinGain} Coins (${b.secretRoom.remaining} left)`);
-            if (b.secretRoom.remaining <= 0) resolveSecretRoom(b);
+        if (isSharedRaider(e) && deferToHost) {
+          // the host owns this raider's real hp - forward the hit instead of mutating it here,
+          // but reward myself right away so landing the killing blow still feels responsive
+          const idx = b.enemies.indexOf(e);
+          net.send('enemyHit', { planetId: currentPlanetId, inCave, index: idx, damage: p.userData.damage });
+          if (e.userData.hp - p.userData.damage <= 0) {
+            const coinGain = 8 + Math.floor(Math.random() * 10);
+            state.coins += coinGain;
+            progressKillNet(currentPlanetId, missionToast);
+            ui.showToast(`Raider down! +${coinGain} Coins`);
           } else {
-            ui.showToast(`${killText} +${coinGain} Coins`);
+            sfx.hit();
           }
         } else {
-          sfx.hit();
+          e.userData.hp -= p.userData.damage;
+          if (e.userData.hp <= 0) killEnemyLocal(b, e);
+          else sfx.hit();
         }
         break;
       }
@@ -888,6 +989,60 @@ function updateGroundCombat(dt) {
     }
   }
 }
+
+// ===================== MULTIPLAYER: shared ground-raider enemies =====================
+// Host-authoritative: the party host runs real raider AI/damage exactly like single-player
+// and periodically broadcasts a snapshot; everyone else renders puppets (see hostIsHere/
+// deferToHost above) and forwards their own hits instead of mutating shared hp directly.
+// Bosses/yeti vault fights stay fully local to whoever triggered that vault - they aren't
+// broadcast at all, since each player's vault encounter is already their own instance.
+let enemySnapshotTimer = 0;
+function syncSharedEnemies(dt) {
+  if (!net.isConnected() || mode !== 'planet' || !net.isHost()) return;
+  enemySnapshotTimer -= dt;
+  if (enemySnapshotTimer > 0) return;
+  enemySnapshotTimer = 0.15;
+  const b = activeBuild;
+  const enemies = [];
+  b.enemies.forEach((e, i) => {
+    if (!isSharedRaider(e)) return;
+    enemies.push({ i, x: e.position.x, y: e.position.y, z: e.position.z, ry: e.rotation.y, hp: e.userData.hp, alive: e.userData.alive });
+  });
+  net.send('enemySnapshot', { planetId: currentPlanetId, inCave, enemies });
+}
+
+net.on('enemySnapshot', (msg) => {
+  if (net.isHost() || mode !== 'planet') return;
+  if (msg.planetId !== currentPlanetId || msg.inCave !== inCave) return;
+  const b = activeBuild;
+  if (!b) return;
+  msg.enemies.forEach((es) => {
+    const e = b.enemies[es.i];
+    if (!e) return;
+    const wasAlive = e.userData.alive;
+    e.userData.hp = es.hp;
+    e.userData.netTarget = new THREE.Vector3(es.x, es.y, es.z);
+    e.userData.netTargetRy = es.ry;
+    if (wasAlive && !es.alive) {
+      killEnemyLocal(b, e, { grantReward: false });
+    } else if (!wasAlive && es.alive) {
+      e.userData.alive = true;
+      e.visible = true;
+      e.position.set(es.x, es.y, es.z);
+      b.scene.add(e);
+    }
+  });
+});
+
+net.on('enemyHit', (msg) => {
+  if (!net.isHost() || mode !== 'planet') return;
+  if (msg.planetId !== currentPlanetId || msg.inCave !== inCave) return;
+  const b = activeBuild;
+  const e = b && b.enemies[msg.index];
+  if (!e || !e.userData.alive || !isSharedRaider(e)) return;
+  e.userData.hp -= msg.damage;
+  if (e.userData.hp <= 0) killEnemyLocal(b, e, { grantReward: false });
+});
 
 function respawnPlayer() {
   state.coins = Math.max(0, Math.floor(state.coins * 0.9));
@@ -1109,6 +1264,7 @@ function tick() {
   if (mode === 'title') { renderer.render(getEmptyScene(), camera); return; }
 
   updateControlsFrame();
+  syncNetworkPresence(dt);
 
   if (mode === 'space') {
     spaceFlight.update(dt, {
@@ -1177,6 +1333,7 @@ function tick() {
   collectiblesTick(dt);
   if (mode === 'planet') {
     updateGroundCombat(dt);
+    syncSharedEnemies(dt);
     updateSecretRoom();
     activeBuild.tick(dt, elapsed);
     ui.renderMissionTracker(activeMissions(currentPlanetId));
@@ -1210,6 +1367,113 @@ function tick() {
 
 let emptyScene = null;
 function getEmptyScene() { if (!emptyScene) emptyScene = new THREE.Scene(); return emptyScene; }
+
+// ===================== MULTIPLAYER: remote player presence =====================
+// Ghost astronauts for whoever else is in the room, rendered when their reported
+// mode/planet matches what the local player is currently looking at. Driving isn't
+// synced yet (no shared vehicle model), so a driving remote player is simply hidden
+// rather than shown standing still.
+const remotePlayerMeshes = {}; // id -> { mesh, tagEl, scene, walkT, curColor, curWeapon }
+let netSendTimer = 0;
+
+function localNetState() {
+  const driving = !!drivingVehicle;
+  const pos = driving ? drivingVehicle.position : player.mesh.position;
+  const heading = driving ? (drivingVehicle.userData.heading || 0) : player.heading;
+  return {
+    pos: [pos.x, pos.y, pos.z],
+    heading, mode, planetId: currentPlanetId, inCave, driving,
+    suitColor: state.equippedSuitColor || 0xe8e8e8,
+    weaponType: state.equippedWeapon || 'pistol',
+    name: state.playerName || 'Player',
+  };
+}
+
+function currentSceneFor(m) {
+  if (m === 'base') return baseBuild ? baseBuild.scene : null;
+  if (m === 'planet') return activeBuild ? activeBuild.scene : null;
+  return null;
+}
+
+function ensureRemoteMesh(id, s) {
+  const mesh = createAstronaut(0xe8e8e8);
+  mesh.position.set(s.pos[0], s.pos[1], s.pos[2]);
+  mesh.rotation.y = s.heading || 0;
+  const tagEl = document.createElement('div');
+  tagEl.className = 'player-tag hidden';
+  document.getElementById('player-tags').appendChild(tagEl);
+  const entry = { mesh, tagEl, scene: null, walkT: 0, curColor: null, curWeapon: null };
+  remotePlayerMeshes[id] = entry;
+  return entry;
+}
+
+function removeRemoteMesh(id) {
+  const entry = remotePlayerMeshes[id];
+  if (!entry) return;
+  if (entry.scene) entry.scene.remove(entry.mesh);
+  entry.tagEl.remove();
+  delete remotePlayerMeshes[id];
+}
+
+function syncNetworkPresence(dt) {
+  if (!net.isConnected()) return;
+
+  netSendTimer -= dt;
+  if (netSendTimer <= 0 && mode !== 'title') {
+    netSendTimer = 0.1;
+    net.send('state', localNetState());
+  }
+
+  Object.keys(remotePlayerMeshes).forEach((id) => {
+    if (!net.remotePlayers[id]) removeRemoteMesh(id);
+  });
+
+  Object.keys(net.remotePlayers).forEach((id) => {
+    if (id === net.selfId) return;
+    const s = net.remotePlayers[id];
+    const entry = remotePlayerMeshes[id] || ensureRemoteMesh(id, s);
+
+    const visible = !s.driving && s.mode === mode && s.inCave === inCave &&
+      (mode !== 'planet' || s.planetId === currentPlanetId);
+    const targetScene = visible ? currentSceneFor(s.mode) : null;
+
+    if (targetScene !== entry.scene) {
+      if (entry.scene) entry.scene.remove(entry.mesh);
+      if (targetScene) targetScene.add(entry.mesh);
+      entry.scene = targetScene;
+    }
+    if (!targetScene) { entry.tagEl.classList.add('hidden'); return; }
+
+    if (entry.curColor !== s.suitColor) { setAstronautSuitColor(entry.mesh, s.suitColor || 0xe8e8e8); entry.curColor = s.suitColor; }
+    if (entry.curWeapon !== s.weaponType) { equipWeaponMesh(entry.mesh, s.weaponType || 'pistol'); entry.curWeapon = s.weaponType; }
+
+    const target = new THREE.Vector3(s.pos[0], s.pos[1], s.pos[2]);
+    const dist = entry.mesh.position.distanceTo(target);
+    const lerpT = 1 - Math.pow(0.0001, dt);
+    entry.mesh.position.lerp(target, lerpT);
+    entry.mesh.rotation.y = lerpAngle(entry.mesh.rotation.y, s.heading || 0, lerpT);
+
+    const moving = dist > 0.02;
+    entry.walkT += dt * (moving ? 8 : 0);
+    animateWalkBob(entry.mesh.userData, entry.walkT, moving);
+
+    const headWorld = entry.mesh.position.clone();
+    headWorld.y += 1.9;
+    const proj = headWorld.project(camera);
+    if (proj.z > 1 || proj.z < -1) { entry.tagEl.classList.add('hidden'); return; }
+    entry.tagEl.style.left = ((proj.x * 0.5 + 0.5) * window.innerWidth) + 'px';
+    entry.tagEl.style.top = ((1 - (proj.y * 0.5 + 0.5)) * window.innerHeight) + 'px';
+    entry.tagEl.textContent = s.name || 'Player';
+    entry.tagEl.classList.remove('hidden');
+  });
+}
+
+net.on('disconnected', () => {
+  Object.keys(remotePlayerMeshes).forEach((id) => removeRemoteMesh(id));
+  ui.showToast('Disconnected from multiplayer.');
+});
+net.on('playerLeft', (id) => removeRemoteMesh(id));
+net.on('playerJoined', () => { if (net.isConnected()) ui.showToast('A player joined the party!'); });
 
 // ===================== MISSION LOG =====================
 function openMissionLog() {
@@ -1285,26 +1549,83 @@ document.getElementById('btn-mute').addEventListener('click', (e) => {
   e.currentTarget.textContent = nowMuted ? '🔇' : '🔊';
 });
 
-document.getElementById('btn-new-game').addEventListener('click', () => {
+function startPlaying(fromSave) {
   unlockAudio();
-  resetState();
+  if (fromSave) loadGame(); else resetState();
   applyUpgradeEffects();
   if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
   player.setWeapon(state.equippedWeapon);
   ui.showTitleScreen(false);
   ui.showHUD(true);
   enterBase();
-});
-document.getElementById('btn-continue').addEventListener('click', () => {
-  unlockAudio();
-  loadGame();
-  applyUpgradeEffects();
-  if (state.equippedSuitColor) player.setSuitColor(state.equippedSuitColor);
-  player.setWeapon(state.equippedWeapon);
-  ui.showTitleScreen(false);
-  ui.showHUD(true);
-  enterBase();
-});
+}
+
+document.getElementById('btn-new-game').addEventListener('click', () => startPlaying(false));
+document.getElementById('btn-continue').addEventListener('click', () => startPlaying(true));
+
+// ===================== JOIN GAME (multiplayer) =====================
+function openJoinPrompt() {
+  const body = document.createElement('div');
+
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 4px;';
+  hint.textContent = net.isConfigured()
+    ? 'Enter a room code from a friend to play together, or make one up and share it with them.'
+    : 'Multiplayer server not set up yet - see the comment at the top of js/net.js.';
+  body.appendChild(hint);
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex; gap:8px;';
+  const codeInput = document.createElement('input');
+  codeInput.type = 'text';
+  codeInput.className = 'code-input';
+  codeInput.placeholder = 'ROOM CODE';
+  codeInput.autocomplete = 'off';
+  codeInput.autocapitalize = 'off';
+  codeInput.spellcheck = false;
+  codeInput.disabled = !net.isConfigured();
+  const joinBtn = document.createElement('button');
+  joinBtn.className = 'code-submit';
+  joinBtn.textContent = 'Join';
+  joinBtn.disabled = !net.isConfigured();
+  row.appendChild(codeInput);
+  row.appendChild(joinBtn);
+  body.appendChild(row);
+
+  const feedback = document.createElement('p');
+  feedback.style.cssText = 'font-size:13px; font-weight:700; min-height:16px; padding:2px;';
+  body.appendChild(feedback);
+
+  const tryJoin = () => {
+    const code = codeInput.value.trim();
+    if (!code) { feedback.textContent = 'Enter a room code first.'; feedback.style.color = '#ff5b5b'; return; }
+    joinBtn.disabled = true;
+    feedback.textContent = 'Connecting...';
+    feedback.style.color = '#9ab';
+    net.connect(code).then(() => {
+      feedback.textContent = 'Connected!';
+      feedback.style.color = '#7fff9e';
+      sfx.win();
+      ui.closePanel();
+      startPlaying(hasSave());
+    }).catch((err) => {
+      joinBtn.disabled = false;
+      feedback.textContent = err && err.message ? err.message : 'Could not connect.';
+      feedback.style.color = '#ff5b5b';
+      sfx.denied();
+    });
+  };
+  joinBtn.onclick = tryJoin;
+  codeInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') tryJoin();
+  });
+  codeInput.addEventListener('keyup', (e) => e.stopPropagation());
+
+  ui.openPanel('🤝 JOIN GAME', body);
+  if (net.isConfigured()) setTimeout(() => codeInput.focus(), 50);
+}
+document.getElementById('btn-join-game').addEventListener('click', () => { sfx.uiClick(); openJoinPrompt(); });
 
 function boot() {
   document.getElementById('btn-mute').textContent = isMuted() ? '🔇' : '🔊';

@@ -204,6 +204,51 @@ function createAstronaut(suitColor = 0xe8e8e8) {
   return group;
 }
 
+// mesh-level equip helpers - factored out of Player so remote (networked) players'
+// ghost meshes can be dressed the same way without needing a full Player instance
+function equipWeaponMesh(mesh, weaponType) {
+  const mount = mesh.userData.gunMount;
+  while (mount.children.length) mount.remove(mount.children[0]);
+  const model = buildWeaponMesh(weaponType);
+  mount.add(model);
+  mesh.userData.weaponMesh = model;
+}
+
+function setAstronautSuitColor(mesh, hex) {
+  const u = mesh.userData;
+  u.body.material.color.set(hex);
+  u.armL.material.color.set(hex);
+  u.armR.material.color.set(hex);
+  u.legL.material.color.set(hex);
+  u.legR.material.color.set(hex);
+  const isDefault = hex === 0xe8e8e8;
+  if (isDefault) {
+    u.chestLight.material.color.set(0xff5a5a);
+    u.chestLight.material.emissive.set(0x000000);
+    u.visor.material.emissive.set(0x0a3a55);
+    u.visor.material.emissiveIntensity = 0.4;
+  } else {
+    u.chestLight.material.color.set(hex);
+    u.chestLight.material.emissive.set(hex);
+    u.chestLight.material.emissiveIntensity = 0.8;
+    u.visor.material.emissive.set(hex);
+    u.visor.material.emissiveIntensity = 0.7;
+  }
+}
+
+// leg/arm walk swing + idle bob - factored out so remote (networked) players can be
+// animated the same way as the local player without needing a full Player instance
+function animateWalkBob(u, walkT, moving) {
+  const swing = Math.sin(walkT) * (moving ? 0.7 : 0);
+  u.legL.rotation.x = swing;
+  u.legR.rotation.x = -swing;
+  u.armL.rotation.x = -swing * 0.8;
+  u.armR.rotation.x = swing * 0.8;
+  const bob = moving ? Math.abs(Math.sin(walkT)) * 0.05 : Math.sin(performance.now() * 0.002) * 0.02;
+  u.body.position.y = 1.0 + bob;
+  u.head.position.y = 1.68 + bob;
+}
+
 // ===================== PLAYER CONTROLLER =====================
 class Player {
   constructor(opts = {}) {
@@ -246,11 +291,7 @@ class Player {
     this.ammo = stats.magSize;
     this.reloading = false;
     this.reloadTimer = 0;
-    const mount = this.mesh.userData.gunMount;
-    while (mount.children.length) mount.remove(mount.children[0]);
-    const model = buildWeaponMesh(this.weaponType);
-    mount.add(model);
-    this.mesh.userData.weaponMesh = model;
+    equipWeaponMesh(this.mesh, this.weaponType);
   }
 
   startReload() {
@@ -262,27 +303,7 @@ class Player {
 
   get position() { return this.mesh.position; }
 
-  setSuitColor(hex) {
-    const u = this.mesh.userData;
-    u.body.material.color.set(hex);
-    u.armL.material.color.set(hex);
-    u.armR.material.color.set(hex);
-    u.legL.material.color.set(hex);
-    u.legR.material.color.set(hex);
-    const isDefault = hex === 0xe8e8e8;
-    if (isDefault) {
-      u.chestLight.material.color.set(0xff5a5a);
-      u.chestLight.material.emissive.set(0x000000);
-      u.visor.material.emissive.set(0x0a3a55);
-      u.visor.material.emissiveIntensity = 0.4;
-    } else {
-      u.chestLight.material.color.set(hex);
-      u.chestLight.material.emissive.set(hex);
-      u.chestLight.material.emissiveIntensity = 0.8;
-      u.visor.material.emissive.set(hex);
-      u.visor.material.emissiveIntensity = 0.7;
-    }
-  }
+  setSuitColor(hex) { setAstronautSuitColor(this.mesh, hex); }
 
   addTo(scene) { scene.add(this.mesh); }
   removeFrom(scene) { scene.remove(this.mesh); }
@@ -375,16 +396,7 @@ class Player {
 
   animate(dt, moving) {
     const u = this.mesh.userData;
-    const swing = Math.sin(this.walkT) * (moving ? 0.7 : 0);
-    u.legL.rotation.x = swing;
-    u.legR.rotation.x = -swing;
-    u.armL.rotation.x = -swing * 0.8;
-    u.armR.rotation.x = swing * 0.8;
-
-    // idle bob
-    const bob = moving ? Math.abs(Math.sin(this.walkT)) * 0.05 : Math.sin(performance.now() * 0.002) * 0.02;
-    u.body.position.y = 1.0 + bob;
-    u.head.position.y = 1.68 + bob;
+    animateWalkBob(u, this.walkT, moving);
 
     // jetpack flame when airborne
     const flameOn = !this.onGround;

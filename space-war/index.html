@@ -10,6 +10,8 @@
 
 <canvas id="game-canvas"></canvas>
 
+<div id="player-tags"></div>
+
 <button id="btn-mute" class="mute-btn">🔊</button>
 
 <!-- ===================== START / TITLE SCREEN ===================== -->
@@ -17,7 +19,8 @@
   <h1 class="title-logo">SPACE <span>WAR</span></h1>
   <p class="subtitle">starring Billy Bob, Astronaut</p>
   <button id="btn-new-game" class="big-btn">NEW GAME</button>
-  <button id="btn-continue" class="big-btn">CONTINUE</button>
+  <button id="btn-continue" class="big-btn">LOAD GAME</button>
+  <button id="btn-join-game" class="big-btn">JOIN GAME</button>
   <p class="hint">WASD / drag joystick to move &middot; drag screen to look &middot; Shift to sprint &middot; F to shoot &middot; R to reload &middot; E to interact &middot; V for first-person view</p>
 </div>
 
@@ -90,6 +93,7 @@
 
 <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/net.js"></script>
 <script src="js/noise.js"></script>
 <script src="js/data.js"></script>
 <script src="js/state.js"></script>

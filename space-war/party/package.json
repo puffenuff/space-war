@@ -1,0 +1,13 @@
+{
+  "name": "space-war-party",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PartyKit co-op relay server for SPACE WAR. Kept in its own subfolder, separate from the static game site, so Netlify (which deploys the repo root) never sees a package.json and tries to run a Node build on it.",
+  "scripts": {
+    "dev": "partykit dev",
+    "deploy": "partykit deploy"
+  },
+  "devDependencies": {
+    "partykit": "latest"
+  }
+}

@@ -4,6 +4,11 @@ html, body { width:100%; height:100%; overflow:hidden; background:#000; font-fam
 
 .hidden { display:none !important; }
 
+/* ---------- multiplayer name tags ---------- */
+#player-tags { position:fixed; inset:0; z-index:19; pointer-events:none; overflow:hidden; }
+.player-tag { position:absolute; transform:translate(-50%,-100%); background:#000a; color:#bff2ff; border:1px solid #5ef8;
+  border-radius:6px; padding:3px 8px; font-size:12px; font-weight:700; white-space:nowrap; }
+
 /* ---------- Loading ---------- */
 #loading-screen { position:fixed; inset:0; background:#03040a; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#9fd; gap:16px; }
 .loader { width:56px; height:56px; border:6px solid #123; border-top-color:#5ef; border-radius:50%; animation:spin 0.9s linear infinite; }
