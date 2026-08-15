@@ -396,7 +396,6 @@ function findNearestInteractable() {
       if (!b.vehicle.userData.repaired || !drivingVehicle) list.push(b.vehicle);
       b.digSites.forEach((d) => { if (!d.userData.dug) list.push(d); });
       (b.oreChests || []).forEach((c) => { if (!c.userData.collected) list.push(c); });
-      if (b.terraformDesk) list.push(b.terraformDesk);
       if (b.lostRocket) list.push(b.lostRocket);
       if (b.mineEntrance) list.push(b.mineEntrance);
       if (!b.shuttleWreck.userData.searched) list.push(b.shuttleWreck);
@@ -436,7 +435,6 @@ function promptLabelFor(obj) {
   if (d.type === 'vehicle') return d.repaired ? 'Enter Rover' : `Hold to Repair (needs 2 Tools, have ${state.inventory.tools})`;
   if (d.type === 'digSite') return 'Hold to Dig';
   if (d.type === 'oreChest') return `Hold to Mine (${MATERIAL_BY_KEY[d.material].name})`;
-  if (d.type === 'terraformDesk') return state.planets[currentPlanetId].terraformStation.built ? 'Open Terraform Computer' : `Build Terraform Computer (${formatCraftCost(TERRAFORM_DESK_COST)})`;
   if (d.type === 'lostRocket') return state.planets[PLANET_COUNT].lostRocketFound ? 'Lost Rocket Ship (explored)' : 'Explore the Lost Rocket Ship!';
   if (d.type === 'mineEntrance') return 'Enter Mineshaft';
   if (d.type === 'caveExit') return 'Exit Mineshaft';
@@ -447,7 +445,6 @@ function promptLabelFor(obj) {
 // ===================== INTERACT HANDLING =====================
 function handleInteractTap(obj) {
   const d = obj.userData;
-  if (d.type === 'terraformDesk') { handleTerraformDeskTap(); return; }
   if (d.type === 'vehicle' && d.repaired) { enterVehicle(obj); return; }
   if (d.type === 'lostRocket') { exploreLostRocket(); return; }
   if (d.type === 'mineEntrance') { enterCave(obj); return; }
@@ -1530,15 +1527,17 @@ function openCraft() {
   const terraformedCount = PLANET_ID_LIST.filter((id) => state.planets[id].terraform.complete).length;
   const note = document.createElement('p');
   note.style.cssText = 'color:#678;font-size:12px;padding:0 2px 10px;';
-  note.textContent = `Terraformed planets: ${terraformedCount}/${PLANET_COUNT} - build a Terraform Computer on the desk near your pod on each world to track its progress. Terraforming more worlds unlocks more to build here.`;
+  note.textContent = `Terraformed planets: ${terraformedCount}/${PLANET_COUNT} - build modules here to unlock GEAR menu features and raise your max health. Terraforming more worlds unlocks more to build here.`;
   body.appendChild(note);
 
   BASE_MODULES.forEach((mod) => {
     const built = !!state.baseModules[mod.key];
     const locked = !built && terraformedCount < (mod.requiresTerraformed || 0);
+    const bonusText = mod.healthBonus ? ` &middot; +${mod.healthBonus} max health` : '';
+    const unlockText = mod.unlocksGear ? ' &middot; unlocks GEAR menu item' : '';
     const row = document.createElement('div');
     row.className = 'shop-item';
-    row.innerHTML = `<div><div class="si-name">${mod.name}${built ? ' (Built)' : ''}</div><div class="si-desc">${mod.desc} &middot; +${mod.healthBonus} max health</div></div>`;
+    row.innerHTML = `<div><div class="si-name">${mod.name}${built ? ' (Built)' : ''}</div><div class="si-desc">${mod.desc}${bonusText}${unlockText}</div></div>`;
     const btn = document.createElement('button');
     if (built) {
       btn.textContent = 'Built';
@@ -1560,7 +1559,7 @@ function openCraft() {
         ui.updateMaterials(totalMaterials());
         ui.updateHealth(state.health, state.maxHealth);
         sfx.buy();
-        ui.showToast(`Built: ${mod.name}!  +${mod.healthBonus} Max Health`);
+        ui.showToast(`Built: ${mod.name}!${mod.healthBonus ? `  +${mod.healthBonus} Max Health` : ''}`);
         openCraft();
       };
     }
@@ -1571,28 +1570,6 @@ function openCraft() {
 }
 
 // ===================== TERRAFORM COMPUTER =====================
-const TERRAFORM_DESK_COST = { titanium: 8, silicon: 8 };
-
-function handleTerraformDeskTap() {
-  const st = state.planets[currentPlanetId].terraformStation;
-  if (st.built) { openTerraformStation(); return; }
-  if (!canAffordCraftCost(TERRAFORM_DESK_COST)) {
-    ui.showToast(`Need ${formatCraftCost(TERRAFORM_DESK_COST)} to build a Terraform Computer.`);
-    sfx.denied();
-    return;
-  }
-  Object.entries(TERRAFORM_DESK_COST).forEach(([k, v]) => {
-    if (MATERIAL_BY_KEY[k]) state.inventory.materials[k] -= v;
-    else state.inventory[k] -= v;
-  });
-  st.built = true;
-  saveGame();
-  ui.updateMaterials(totalMaterials());
-  sfx.buy();
-  ui.showToast('Terraform Computer built!');
-  openTerraformStation();
-}
-
 // each of the 17 materials feeds exactly one of the 3 meters - see TERRAFORM_GROUPS (data.js)
 function depositMaterial(planetId, key) {
   const group = terraformGroupOf(key);
@@ -1789,22 +1766,33 @@ function openTechTree() {
 // ===================== GEAR MENU =====================
 function openGearMenu() {
   const body = document.createElement('div');
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9ab;font-size:13px;padding:0 2px 8px;';
+  hint.textContent = 'Build the matching module in Craft to unlock each item below - it only takes materials, and stays built once you build it.';
+  body.appendChild(hint);
+
   const items = [
     { label: '💾 Save Game', fn: () => { saveGameAs(state.saveName); sfx.buy(); ui.showToast(`Saved "${state.saveName}"`); } },
-    { label: '🧥 Wardrobe', fn: openWardrobe },
-    { label: '🔫 Weapons', fn: openWeapons },
-    { label: '⚡ Upgrades', fn: () => openShop('upgrades') },
-    { label: '🔧 Parts Shop', fn: () => openShop('parts') },
-    { label: '🛠 Tool Shop', fn: () => openShop('tools') },
-    { label: '🍔 Food Shop', fn: () => openShop('food') },
-    { label: '💻 Codes', fn: openCodes },
+    { label: '🧥 Wardrobe', fn: openWardrobe, requires: 'wardrobeRack' },
+    { label: '🔫 Weapons', fn: openWeapons, requires: 'weaponsLocker' },
+    { label: '⚡ Upgrades', fn: () => openShop('upgrades'), requires: 'upgradeBench' },
+    { label: '🔧 Parts Shop', fn: () => openShop('parts'), requires: 'supplyTerminal' },
+    { label: '🛠 Tool Shop', fn: () => openShop('tools'), requires: 'supplyTerminal' },
+    { label: '🍔 Food Shop', fn: () => openShop('food'), requires: 'supplyTerminal' },
+    { label: '💻 Codes', fn: openCodes, requires: 'commsTerminal' },
+    { label: '🌍 Terraform Computer', fn: openTerraformStation, requires: 'terraformComputer' },
   ];
   items.forEach((it) => {
+    const built = !it.requires || !!state.baseModules[it.requires];
     const btn = document.createElement('button');
     btn.className = 'big-btn';
-    btn.style.cssText = 'display:block; width:100%; margin-bottom:8px; min-width:0;';
-    btn.textContent = it.label;
-    btn.onclick = () => { sfx.uiClick(); it.fn(); };
+    btn.style.cssText = `display:block; width:100%; margin-bottom:8px; min-width:0;${built ? '' : ' opacity:0.5;'}`;
+    btn.textContent = built ? it.label : `${it.label} (build in Craft)`;
+    btn.onclick = () => {
+      sfx.uiClick();
+      if (!built) { ui.showToast('Build this module in the Craft menu first.'); return; }
+      it.fn();
+    };
     body.appendChild(btn);
   });
   ui.openPanel('🎒 GEAR', body);

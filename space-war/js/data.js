@@ -180,6 +180,14 @@ const CHEAT_CODES = {
 // gates a module behind having fully terraformed that many planets (via the Terraform Computer) -
 // the more terraforming you've done, the more there is to build.
 const BASE_MODULES = [
+  // gear-unlock modules: build one of these to unlock the matching GEAR menu item on this planet
+  { key: 'wardrobeRack', name: 'Wardrobe Rack', desc: 'Store and change into suits you\'ve found.', cost: { aluminum: 6, iron: 4 }, healthBonus: 0, requiresTerraformed: 0, unlocksGear: 'wardrobe' },
+  { key: 'weaponsLocker', name: 'Weapons Locker', desc: 'Secure storage for blasters and ammo.', cost: { titanium: 6, iron: 6 }, healthBonus: 0, requiresTerraformed: 0, unlocksGear: 'weapons' },
+  { key: 'upgradeBench', name: 'Upgrade Bench', desc: "Tune your suit's thrusters, coils, and plating.", cost: { cobalt: 6, silicon: 6, tools: 4 }, healthBonus: 0, requiresTerraformed: 0, unlocksGear: 'upgrades' },
+  { key: 'supplyTerminal', name: 'Supply Terminal', desc: 'Order parts, tools, and food with coins.', cost: { aluminum: 8, magnesium: 6 }, healthBonus: 0, requiresTerraformed: 0, unlocksGear: 'shop' },
+  { key: 'commsTerminal', name: 'Comms Terminal', desc: 'Redeem transmission codes from home.', cost: { silicon: 8, zeolite: 4 }, healthBonus: 0, requiresTerraformed: 0, unlocksGear: 'codes' },
+  { key: 'terraformComputer', name: 'Terraform Computer', desc: "Track and drive this world's terraforming.", cost: { iron: 10, silicon: 8, tools: 6 }, healthBonus: 0, requiresTerraformed: 0, unlocksGear: 'terraform' },
+  // health-bonus modules: build these purely to raise max health, no GEAR unlock attached
   { key: 'solarArray', name: 'Solar Array', desc: 'Clean power for the whole base.', cost: { silicon: 12, aluminum: 8 }, healthBonus: 10, requiresTerraformed: 0 },
   { key: 'waterReclaimer', name: 'Water Reclaimer', desc: 'Recycles water for life support.', cost: { ice: 10, zeolite: 5, tools: 6 }, healthBonus: 10, requiresTerraformed: 0 },
   { key: 'greenhouseDome', name: 'Greenhouse Dome', desc: 'Grows food to keep the crew fed.', cost: { phosphorus: 10, magnesium: 10 }, healthBonus: 10, requiresTerraformed: 1 },

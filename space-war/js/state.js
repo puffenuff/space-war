@@ -39,7 +39,6 @@ function freshState(saveName) {
       vehicleRepaired: false, lostRocketFound: false, secretRoomDone: false, blueprintFound: false,
       terraform: { oxygen: 0, heat: 0, pressure: 0, complete: false },
       extractor: { built: false, material: extractorMaterial, stock: 0, lastTick: null },
-      terraformStation: { built: false, pos: null }, // player builds one per planet - see Craft menu
       progress: freshPlanetProgress(),
     };
   });

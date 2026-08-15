@@ -31,32 +31,6 @@ function seededRand(seed) {
   };
 }
 
-// ---- Terraform Station: NOT part of the deterministic per-planet generation above - the
-// player has to build one (via the Craft menu) wherever they're standing, so this is a
-// standalone factory game.js calls at build time and again to restore it on revisits ----
-function buildTerraformStationMesh(x, y, z) {
-  const station = new THREE.Group();
-  const stationBaseMat = new THREE.MeshStandardMaterial({ color: 0x2a3348, metalness: 0.6, roughness: 0.35 });
-  const stationBase = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.05, 1.2, 10), stationBaseMat);
-  stationBase.position.y = 0.6;
-  stationBase.castShadow = true;
-  station.add(stationBase);
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.7, 0.12), new THREE.MeshStandardMaterial({ color: 0x1a2030, metalness: 0.4, roughness: 0.4 }));
-  panel.position.set(0, 1.35, 0.55);
-  panel.rotation.x = -0.35;
-  station.add(panel);
-  const meterColors = [0x6fd7ff, 0xff8a3d, 0xb7a0ff]; // oxygen, heat, pressure
-  const meterLights = meterColors.map((c, i) => {
-    const light = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.7 }));
-    light.position.set(-0.32 + i * 0.32, 1.9, 0.4);
-    station.add(light);
-    return light;
-  });
-  station.position.set(x, y, z);
-  station.userData = { type: 'terraformStation', meterLights };
-  return station;
-}
-
 function buildTerrain(planet, heightFn) {
   const size = planet.size;
   const segs = Math.min(220, Math.round(70 + size / 8));
@@ -655,33 +629,6 @@ function buildPlanetScene(planetId) {
   beacon.userData = { type: 'pod' };
   scene.add(beacon);
 
-  // ---- terraform desk: a salvaged table + monitor next to the pod. Always present, but the
-  // computer on it only does anything once the player builds one (via the Craft menu or by
-  // interacting here) - see handleTerraformDeskTap/openTerraformStation in game.js ----
-  const terraformDesk = new THREE.Group();
-  const deskMat = new THREE.MeshStandardMaterial({ color: 0x4a4640, metalness: 0.4, roughness: 0.6 });
-  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 0.8), deskMat);
-  deskTop.position.y = 0.9;
-  deskTop.castShadow = true;
-  terraformDesk.add(deskTop);
-  const deskLegGeo = new THREE.BoxGeometry(0.1, 0.9, 0.1);
-  [[-0.55, -0.3], [0.55, -0.3], [-0.55, 0.3], [0.55, 0.3]].forEach(([dx, dz]) => {
-    const leg = new THREE.Mesh(deskLegGeo, deskMat);
-    leg.position.set(dx, 0.45, dz);
-    terraformDesk.add(leg);
-  });
-  const monitorMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, metalness: 0.4, roughness: 0.4 });
-  const monitor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 0.08), monitorMat);
-  monitor.position.set(0, 1.28, -0.15);
-  terraformDesk.add(monitor);
-  const monitorScreen = new THREE.Mesh(new THREE.PlaneGeometry(0.58, 0.38), new THREE.MeshStandardMaterial({ color: 0x0a2a3a, emissive: 0x2aa9a0, emissiveIntensity: 0.5, side: THREE.DoubleSide }));
-  monitorScreen.position.set(0, 1.28, -0.1);
-  terraformDesk.add(monitorScreen);
-  terraformDesk.position.set(2.4, groundHeightFn(2.4, 11), 10.6);
-  terraformDesk.rotation.y = -0.5;
-  terraformDesk.userData = { type: 'terraformDesk' };
-  scene.add(terraformDesk);
-
   // ---- salvage caches (small coin-value pickups) + coin pickups ----
   const scrapPickups = [];
   const scrapGeo = new THREE.BoxGeometry(0.35, 0.35, 0.35);
@@ -876,7 +823,17 @@ function buildPlanetScene(planetId) {
       shard.scale.setScalar(0.7 + rand() * 0.6);
       deposit.add(shard);
     }
-    deposit.userData = { type: 'oreChest', collected: false, material: matDef.key, crystalMat, amount: 4 + Math.floor(rand() * 4) };
+    // a tall, thin glowing beacon so the deposit is spottable from way across the map, not
+    // just once you're standing right on top of it - fog cuts off the geometry itself long
+    // before that, so this is the only thing that actually reads at a distance
+    const beamMat = new THREE.MeshBasicMaterial({ color: matDef.color, transparent: true, opacity: 0.4, fog: false, depthWrite: false });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.25, 18, 8, 1, true), beamMat);
+    beam.position.y = 9;
+    deposit.add(beam);
+    deposit.userData = {
+      type: 'oreChest', collected: false, material: matDef.key, crystalMat, beamMat,
+      amount: 4 + Math.floor(rand() * 4), baseY: y, popPhase: rand() * Math.PI * 2,
+    };
     return deposit;
   }
   const oreChests = [];
@@ -1613,7 +1570,7 @@ function buildPlanetScene(planetId) {
     scene, groundHeightFn,
     planet, ambient, skyGroup,
     spawnPoint: { x: 0, z: 6 },
-    beacon, terraformDesk, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
+    beacon, scrapPickups, coinPickups, partPickup, digSites, mineEntrance,
     caveGroup, caveOrigin, chest, caveTreasures, outfit, caveExit,
     caveScrapPickups, caveCoinPickups,
     shuttleWreck: shuttleGroup, oreChests, caveOreChests,
@@ -1666,8 +1623,20 @@ function buildPlanetScene(planetId) {
       caveCoinPickups.forEach((m) => { if (!m.userData.collected) { m.rotation.z = t * 3; } });
       if (partPickup && !partPickup.userData.collected) { partPickup.rotation.y = t * 1.2; partPickup.position.y += Math.sin(t * 2) * 0.002; }
       if (!shuttleGroup.userData.searched) { chipGlow.material.emissiveIntensity = 0.5 + Math.sin(t * 4) * 0.4; }
-      oreChests.forEach((c) => { if (!c.userData.collected) c.userData.crystalMat.emissiveIntensity = c.userData.crystalMat.userData.baseGlow + Math.sin(t * 2.5) * 0.15; });
-      caveOreChests.forEach((c) => { if (!c.userData.collected) c.userData.crystalMat.emissiveIntensity = c.userData.crystalMat.userData.baseGlow + Math.sin(t * 2.5) * 0.15; });
+      oreChests.forEach((c) => {
+        if (c.userData.collected) return;
+        c.userData.crystalMat.emissiveIntensity = c.userData.crystalMat.userData.baseGlow + Math.sin(t * 2.5) * 0.15;
+        c.userData.beamMat.opacity = 0.3 + Math.sin(t * 1.6) * 0.15;
+        // surfaces out of the ground and settles back on a slow cycle, rather than sitting
+        // static - the motion is what actually catches your eye across a huge map
+        c.position.y = c.userData.baseY + Math.max(0, Math.sin(t * 0.5 + c.userData.popPhase)) * 0.4;
+      });
+      caveOreChests.forEach((c) => {
+        if (c.userData.collected) return;
+        c.userData.crystalMat.emissiveIntensity = c.userData.crystalMat.userData.baseGlow + Math.sin(t * 2.5) * 0.15;
+        if (c.userData.beamMat) c.userData.beamMat.opacity = 0.3 + Math.sin(t * 1.6) * 0.15;
+        if (c.userData.baseY !== undefined) c.position.y = c.userData.baseY + Math.max(0, Math.sin(t * 0.5 + c.userData.popPhase)) * 0.4;
+      });
       if (outfit && !outfit.userData.collected) {
         outfit.rotation.y = t * 0.8;
         outfit.position.y = 0.1 + Math.sin(t * 1.6) * 0.15;
